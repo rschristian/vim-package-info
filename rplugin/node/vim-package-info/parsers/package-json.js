@@ -7,7 +7,7 @@ const render = require("../render");
 const rutils = require("../render_utils");
 
 const LANGUAGE = "javascript";
-const depGroups = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
+const depGroups = ["dependencies", "devDependencies"];
 const markers = depGroups.map((prop) => [new RegExp(`["|'](${prop})["|']`), /\}/]);
 const nameRegex = /['|"](.*)['|"] *:/;
 
