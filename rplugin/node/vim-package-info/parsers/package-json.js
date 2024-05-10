@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const yaml = require("yaml");
 const lockfile = require("@yarnpkg/lockfile");
 
 const utils = require("../utils");
@@ -52,6 +53,7 @@ class PackageJson {
     do {
       const npm_lock_filename = path.join(dir, "package-lock.json");
       const yarn_lock_filename = path.join(dir, "yarn.lock");
+      const pnpm_lock_filename = path.join(dir, "pnpm-lock.yaml");
 
       if (fs.existsSync(npm_lock_filename)) {
         found = true;
@@ -76,6 +78,21 @@ class PackageJson {
               global.store.set(LANGUAGE, dep, {
                 current_version,
               });
+            }
+          }
+        }
+      } else if (fs.existsSync(pnpm_lock_filename)) {
+        found = true;
+        const lockfile_content = yaml.parse(fs.readFileSync(pnpm_lock_filename, "utf-8"));
+        for (let dep of depList) {
+          for (let dg of depGroups) {
+            if (dg in lockfile_content && dep in lockfile_content[dg]) {
+              let current_version = lockfile_content[dg][dep]["version"].match(/([^\(]+)/);
+              current_version = current_version ? current_version[1] : null;
+              global.store.set(LANGUAGE, dep, {
+                current_version,
+              });
+              break;
             }
           }
         }
