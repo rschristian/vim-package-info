@@ -58,9 +58,21 @@ class PackageJson {
       if (fs.existsSync(npm_lock_filename)) {
         found = true;
         const lockfile_content = JSON.parse(fs.readFileSync(npm_lock_filename, "utf-8"));
+        const version = lockfile_content["lockfileVersion"];
         for (let dep of depList) {
           for (let dg of depGroups) {
-            if (dg in lockfile_content && dep in lockfile_content[dg]) {
+            if (version == 3) {
+              const pkgKey = `node_modules/${dep}`;
+              if (pkgKey in lockfile_content["packages"] && dg == "dependencies"
+                ? lockfile_content["packages"][pkgKey]["dev"] === undefined
+                : lockfile_content["packages"][pkgKey]["dev"] === true
+              ) {
+                global.store.set(LANGUAGE, dep, {
+                  current_version: lockfile_content["packages"][pkgKey]["version"] || null,
+                });
+                break;
+              }
+            } else if (dg in lockfile_content && dep in lockfile_content[dg]) {
               global.store.set(LANGUAGE, dep, {
                 current_version: lockfile_content[dg][dep]["version"] || null,
               });
