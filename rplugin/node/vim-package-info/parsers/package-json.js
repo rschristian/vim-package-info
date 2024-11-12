@@ -1,18 +1,18 @@
-const fs = require('fs');
-const path = require('path');
-const yaml = require('yaml');
-const lockfile = require('@yarnpkg/lockfile');
+import fs from 'node:fs';
+import path from 'node:path';
+import yaml from 'yaml';
+import lockfile from '@yarnpkg/lockfile';
 
-const utils = require('../utils');
-const render = require('../render');
-const rutils = require('../render_utils');
+import { fetcher } from '../utils.js';
+import { drawOne } from '../render.js';
+import { getDepLines } from '../render-utils.js';
 
 const LANGUAGE = 'javascript';
 const depGroups = ['dependencies', 'devDependencies'];
 const markers = depGroups.map((prop) => [new RegExp(`["|'](${prop})["|']`), /\}/]);
 const nameRegex = /['|"](.*)['|"] *:/;
 
-class PackageJson {
+export class PackageJson {
     getDeps(bufferContent) {
         const data = JSON.parse(bufferContent);
         const depList = [];
@@ -31,7 +31,7 @@ class PackageJson {
     updatePackageVersions(depList) {
         for (let dep of depList) {
             const fetchURL = `https://registry.npmjs.org/${dep}`;
-            utils.fetcher(fetchURL).then((data) => {
+            fetcher(fetchURL).then((data) => {
                 const semver_version = global.store.get(LANGUAGE, dep).semver_version;
                 if (/^(http[s]*|file):\/\//.test(semver_version)) return; // don't bother checking in this case
 
@@ -125,11 +125,9 @@ class PackageJson {
 
         const info = global.store.get(LANGUAGE, dep);
 
-        const lineNumbers = rutils.getDepLines(bufferLines, markers, nameRegex, dep);
+        const lineNumbers = getDepLines(bufferLines, markers, nameRegex, dep);
         for (let ln of lineNumbers) {
-            await render.drawOne(handle, ln, info.current_version, info.latest);
+            await drawOne(handle, ln, info.current_version, info.latest);
         }
     }
 }
-
-module.exports = { default: PackageJson };

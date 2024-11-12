@@ -1,17 +1,17 @@
-const fs = require('fs');
-const path = require('path');
-const toml = require('toml');
+import fs from 'node:fs';
+import path from 'node:path';
+import toml from 'toml';
 
-const utils = require('../utils');
-const render = require('../render');
-const rutils = require('../render_utils');
+import { fetcher } from '../utils.js';
+import { drawOne } from '../render.js';
+import { getDepLines } from '../render-utils.js';
 
 const LANGUAGE = 'python:pyproject';
 const depGroups = ['dependencies', 'dev-dependencies'];
 const markers = [[/\[(.*dependencies)\]/, /^ *\[.*\].*/]];
 const nameRegex = /['|"]?([a-zA-Z0-9\-_]*)['|"]? *=.*/;
 
-class PyprojectToml {
+export class PyprojectToml {
     getDeps(bufferContent) {
         const data = toml.parse(bufferContent)['tool']['poetry'];
         const depList = [];
@@ -33,7 +33,7 @@ class PyprojectToml {
             if ('latest' in global.store.get(LANGUAGE, dep)) return;
 
             const fetchURL = `https://pypi.org/pypi/${dep}/json`;
-            utils.fetcher(fetchURL).then((data) => {
+            fetcher(fetchURL).then((data) => {
                 data = JSON.parse(data);
                 const latest = data.info.version;
                 console.log('latest:', latest);
@@ -62,12 +62,10 @@ class PyprojectToml {
         const bufferLines = await buffer.getLines();
 
         const info = global.store.get(LANGUAGE, dep);
-        const lineNumbers = rutils.getDepLines(bufferLines, markers, nameRegex, dep, true);
+        const lineNumbers = getDepLines(bufferLines, markers, nameRegex, dep, true);
         // TODO: switch from latest_version to latest_semver satisfied version
         for (let ln of lineNumbers) {
-            await render.drawOne(handle, ln, info.current_version, info.latest);
+            await drawOne(handle, ln, info.current_version, info.latest);
         }
     }
 }
-
-module.exports = { default: PyprojectToml };

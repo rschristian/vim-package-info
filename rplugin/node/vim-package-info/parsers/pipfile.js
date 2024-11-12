@@ -1,10 +1,10 @@
-const fs = require('fs');
-const path = require('path');
-const toml = require('toml');
+import fs from 'node:fs';
+import path from 'node:path';
+import toml from 'toml';
 
-const utils = require('../utils');
-const render = require('../render');
-const rutils = require('../render_utils');
+import { fetcher } from '../utils.js';
+import { drawOne } from '../render.js';
+import { getDepLines } from '../render-utils.js';
 
 const LANGUAGE = 'python:pipfile';
 const depGroups = ['packages', 'dev-packages'];
@@ -14,7 +14,7 @@ const markers = [
 ];
 const nameRegex = /"?([a-zA-Z0-9\-_]*)"? *=.*/;
 
-class PipfileParser {
+export class PipfileParser {
     getDeps(bufferContent) {
         const data = toml.parse(bufferContent);
         const depList = [];
@@ -35,7 +35,7 @@ class PipfileParser {
             if ('latest' in global.store.get(LANGUAGE, dep)) return;
 
             const fetchURL = `https://pypi.org/pypi/${dep}/json`;
-            utils.fetcher(fetchURL).then((data) => {
+            fetcher(fetchURL).then((data) => {
                 data = JSON.parse(data);
                 const latest = data.info.version;
                 const versions = Object.keys(data['releases']);
@@ -71,11 +71,9 @@ class PipfileParser {
         const info = global.store.get(LANGUAGE, dep);
 
         // TODO: switch from latest_version to latest_semver satisfied version
-        const lineNumbers = rutils.getDepLines(bufferLines, markers, nameRegex, dep, true);
+        const lineNumbers = getDepLines(bufferLines, markers, nameRegex, dep, true);
         for (let ln of lineNumbers) {
-            await render.drawOne(handle, ln, info.current_version, info.latest);
+            await drawOne(handle, ln, info.current_version, info.latest);
         }
     }
 }
-
-module.exports = { default: PipfileParser };

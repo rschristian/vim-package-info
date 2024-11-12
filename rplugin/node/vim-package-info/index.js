@@ -1,12 +1,12 @@
-const utils = require('./utils.js');
-const Store = require('./more.js').default;
-const render = require('./render.js');
+import { determineFileKind } from './utils.js';
+import { Store } from './more.js';
+import { clearAll } from './render.js';
 
-const PackageJson = require('./parsers/package-json.js').default;
-const CargoParser = require('./parsers/cargo.js').default;
-const RequirementsTxt = require('./parsers/requirements-txt.js').default;
-const PipfileParser = require('./parsers/pipfile.js').default;
-const PyprojectToml = require('./parsers/pyproject-toml.js').default;
+import { PackageJson } from './parsers/package-json.js';
+import { CargoParser } from './parsers/cargo.js';
+import { RequirementsTxt } from './parsers/requirements-txt.js';
+import { PipfileParser } from './parsers/pipfile.js';
+import { PyprojectToml } from './parsers/pyproject-toml.js';
 
 let globalHandle = null;
 function callRenderer(confType, dep) {
@@ -39,14 +39,14 @@ function getPackageParser(confType) {
 async function run(handle) {
     globalHandle = handle;
     global.bufferHash = +new Date();
-    await render.clearAll(handle);
+    await clearAll(handle);
 
     const buffer = await handle.nvim.buffer;
     const bufferLines = await buffer.getLines();
     const bufferContent = bufferLines.join('\n');
 
     const filePath = await handle.nvim.commandOutput("echo expand('%')"); // there should be a better, I just don't know
-    const confType = utils.determineFileKind(filePath);
+    const confType = determineFileKind(filePath);
 
     const parser = getPackageParser(confType);
     const depList = parser.getDeps(bufferContent);
@@ -54,7 +54,7 @@ async function run(handle) {
     parser.updateCurrentVersions(depList, filePath);
 }
 
-module.exports = (handle) => {
+export default function (handle) {
     handle.setOptions({ dev: true });
 
     ['BufEnter', 'InsertLeave', 'TextChanged'].forEach((e) => {
@@ -62,4 +62,4 @@ module.exports = (handle) => {
             pattern: '*/package.json,*/Cargo.toml,*/*requirements.txt,*/Pipfile,*/pyproject.toml',
         });
     });
-};
+}

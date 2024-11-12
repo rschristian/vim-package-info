@@ -1,6 +1,5 @@
 // A super minimal store implementation with callback on insert event
-
-class Store {
+export class Store {
     constructor(initialValue = {}, callback) {
         this.store = initialValue;
         this.callback = callback;
@@ -22,5 +21,3 @@ class Store {
         this.callback(lang, dep, this.store[lang][dep]);
     }
 }
-
-module.exports = { default: Store };

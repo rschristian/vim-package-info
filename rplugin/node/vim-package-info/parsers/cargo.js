@@ -1,17 +1,17 @@
-const fs = require('fs');
-const path = require('path');
-const toml = require('toml');
+import fs from 'node:fs';
+import path from 'node:path';
+import toml from 'toml';
 
-const utils = require('../utils');
-const render = require('../render');
-const rutils = require('../render_utils');
+import { fetcher } from '../utils.js';
+import { drawOne } from '../render.js';
+import { getDepLines } from '../render-utils.js';
 
 const LANGUAGE = 'rust';
 const depGroups = ['dependencies', 'build-dependencies', 'dev-dependencies'];
 const nameRegex = /([a-zA-Z0-9\-_]*) *=.*/;
 const markers = [[/\[(.*dependencies)\]/, /^ *\[.*\].*/]];
 
-class CargoParser {
+export class CargoParser {
     getDeps(bufferContent) {
         const data = toml.parse(bufferContent);
         const depList = [];
@@ -32,7 +32,7 @@ class CargoParser {
             if ('latest' in global.store.get(LANGUAGE, dep)) return;
 
             const fetchURL = `https://crates.io/api/v1/crates/${dep}`;
-            utils.fetcher(fetchURL).then((data) => {
+            fetcher(fetchURL).then((data) => {
                 data = JSON.parse(data);
                 const latest = data['crate'].max_version;
                 const versions = data['versions'].map((v) => v.num);
@@ -61,11 +61,9 @@ class CargoParser {
 
         const info = global.store.get(LANGUAGE, dep);
 
-        const lineNumbers = rutils.getDepLines(bufferLines, markers, nameRegex, dep, true);
+        const lineNumbers = getDepLines(bufferLines, markers, nameRegex, dep, true);
         for (let ln of lineNumbers) {
-            await render.drawOne(handle, ln, info.current_version, info.latest);
+            await drawOne(handle, ln, info.current_version, info.latest);
         }
     }
 }
-
-module.exports = { default: CargoParser };

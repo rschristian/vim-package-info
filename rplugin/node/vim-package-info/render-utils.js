@@ -1,4 +1,4 @@
-const diff = require('./diff');
+import { colorizeDiff } from './diff.js';
 
 function isStart(line, depMarkers) {
     // for requirements.txt
@@ -14,7 +14,7 @@ function isStart(line, depMarkers) {
     return false;
 }
 
-function getDepLines(lines, depMarkers, nameRegex, name, end_maybe_start_of_next = false) {
+export function getDepLines(lines, depMarkers, nameRegex, name, end_maybe_start_of_next = false) {
     let start = depMarkers === null ? true : false;
     let end = false;
     let depLines = [];
@@ -44,14 +44,12 @@ function getDepLines(lines, depMarkers, nameRegex, name, end_maybe_start_of_next
     return depLines;
 }
 
-function format(current, prefix, hl, latest) {
+export function format(current, prefix, hl, latest) {
     // let lpf = [[`${prefix}No info available`, hl]];
     let lpf = [['', hl]];
-    const cd = diff.colorizeDiff(current, latest, hl);
+    const cd = colorizeDiff(current, latest, hl);
 
     lpf = [[`${prefix} `, hl], ...cd];
 
     return lpf;
 }
-
-module.exports = { getDepLines, format };

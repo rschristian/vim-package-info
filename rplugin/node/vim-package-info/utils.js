@@ -1,7 +1,7 @@
-const path = require('path');
-const https = require('follow-redirects').https;
+import path from 'node:path';
+import followRedirects from 'follow-redirects';
 
-function determineFileKind(filePath) {
+export function determineFileKind(filePath) {
     const filename = path.basename(filePath);
 
     if (filename.match(/^.*?requirements.txt$/)) {
@@ -22,7 +22,7 @@ function determineFileKind(filePath) {
 }
 
 // TODO: make use of this
-function getUrl(dep, confType) {
+export function getUrl(dep, confType) {
     switch (confType) {
         case 'javascript':
             return `https://registry.npmjs.org/${dep}`;
@@ -38,7 +38,7 @@ function getUrl(dep, confType) {
 }
 
 // TODO: make this the only way to get this info + do for markers
-function getNameRegex(confType) {
+export function getNameRegex(confType) {
     return {
         javascript: /['|"](.*)['|"] *:/,
         rust: /([a-zA-Z0-9\-_]*) *=.*/,
@@ -48,7 +48,7 @@ function getNameRegex(confType) {
     }[confType];
 }
 
-function getDepMarkers(confType) {
+export function getDepMarkers(confType) {
     // [ [start, end], [start, end] ]
     return {
         javascript: [
@@ -65,7 +65,7 @@ function getDepMarkers(confType) {
     }[confType];
 }
 
-async function fetcher(url) {
+export async function fetcher(url) {
     return new Promise((accept, reject) => {
         const options = {
             headers: {
@@ -73,7 +73,7 @@ async function fetcher(url) {
             },
         };
         if (url)
-            https
+            followRedirects.https
                 .get(url, options, (resp) => {
                     let data = '';
                     resp.on('data', (chunk) => {
@@ -92,7 +92,7 @@ async function fetcher(url) {
     });
 }
 
-async function getConfigValues(nvim) {
+export async function getConfigValues(nvim) {
     let prefix = '  ¤ ';
     let hl_group = 'NonText';
 
@@ -112,12 +112,3 @@ async function getConfigValues(nvim) {
 
     return { prefix, hl_group };
 }
-
-module.exports = {
-    fetcher,
-    getUrl,
-    getConfigValues,
-    determineFileKind,
-    getNameRegex,
-    getDepMarkers,
-};

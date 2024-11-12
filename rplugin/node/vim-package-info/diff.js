@@ -62,7 +62,7 @@ function getHighlight(level, diff, hl) {
     return hl;
 }
 
-function colorizeDiff(current, latest, hl) {
+export function colorizeDiff(current, latest, hl) {
     const c = normalize(current);
     const l = normalize(latest);
     const diff = calculateDiff(c, l);
@@ -87,5 +87,3 @@ function colorizeDiff(current, latest, hl) {
 
     return highlight;
 }
-
-module.exports = { colorizeDiff };
