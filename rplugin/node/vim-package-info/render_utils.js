@@ -44,14 +44,12 @@ function getDepLines(lines, depMarkers, nameRegex, name, end_maybe_start_of_next
     return depLines;
 }
 
-function format(current, prefix, hl, latest, vulnerable = false) {
+function format(current, prefix, hl, latest) {
     // let lpf = [[`${prefix}No info available`, hl]];
     let lpf = [['', hl]];
     const cd = diff.colorizeDiff(current, latest, hl);
 
-    if (vulnerable)
-        lpf = [['   ', hl], [' vulnerable ', 'VimPackageInfoVulnerable'], [' ', hl], ...cd];
-    else lpf = [[`${prefix} `, hl], ...cd];
+    lpf = [[`${prefix} `, hl], ...cd];
 
     return lpf;
 }

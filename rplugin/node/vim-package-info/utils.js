@@ -113,27 +113,11 @@ async function getConfigValues(nvim) {
     return { prefix, hl_group };
 }
 
-// TODO: move to vulnerabilities.js file
-function createVulStats(vulnerabilities, dep) {
-    let vv = [`# Vulnerabilities for ${dep}`, '', ''];
-    for (let v of vulnerabilities) {
-        vv.push(`## ${v.title}${v.cwe ? `(${v.cwe})` : ''}`);
-        vv.push('');
-        vv.push(v.description);
-        vv.push(v.reference);
-        vv.push('');
-        vv.push('');
-    }
-    console.log('vv:', vv);
-    return vv;
-}
-
 module.exports = {
     fetcher,
     getUrl,
     getConfigValues,
     determineFileKind,
-    createVulStats,
     getNameRegex,
     getDepMarkers,
 };

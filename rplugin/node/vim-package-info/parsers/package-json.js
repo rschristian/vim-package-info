@@ -126,9 +126,8 @@ class PackageJson {
         const info = global.store.get(LANGUAGE, dep);
 
         const lineNumbers = rutils.getDepLines(bufferLines, markers, nameRegex, dep);
-        const isVulnerable = 'vulnerabilities' in info && info.vulnerabilities.length > 0;
         for (let ln of lineNumbers) {
-            await render.drawOne(handle, ln, info.current_version, info.latest, isVulnerable);
+            await render.drawOne(handle, ln, info.current_version, info.latest);
         }
     }
 }
