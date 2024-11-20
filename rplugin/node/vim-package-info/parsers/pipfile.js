@@ -6,8 +6,6 @@ import { fetcher } from '../utils.js';
 import { drawOne } from '../render.js';
 import { getDepLines } from '../render-utils.js';
 
-const LANGUAGE = 'python:pipfile';
-const depGroups = ['packages', 'dev-packages'];
 const markers = [
     [/\[(packages)\]/, /^ *\[.*\].*/],
     [/\[(dev-packages)\]/, /^ *\[.*\].*/],
@@ -64,7 +62,6 @@ export class PipfileParser {
     }
 
     async render(handle, dep) {
-        // this could be in the baseclass
         const buffer = await handle.nvim.buffer;
         const bufferLines = await buffer.getLines();
 

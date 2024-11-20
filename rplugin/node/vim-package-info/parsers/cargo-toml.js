@@ -6,8 +6,6 @@ import { fetcher } from '../utils.js';
 import { drawOne } from '../render.js';
 import { getDepLines } from '../render-utils.js';
 
-const LANGUAGE = 'rust';
-const depGroups = ['dependencies', 'build-dependencies', 'dev-dependencies'];
 const nameRegex = /([a-zA-Z0-9\-_]*) *=.*/;
 const markers = [[/\[(.*dependencies)\]/, /^ *\[.*\].*/]];
 

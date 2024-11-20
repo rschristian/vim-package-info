@@ -6,8 +6,6 @@ import { fetcher } from '../utils.js';
 import { drawOne } from '../render.js';
 import { getDepLines } from '../render-utils.js';
 
-const LANGUAGE = 'python:pyproject';
-const depGroups = ['dependencies', 'dev-dependencies'];
 const markers = [[/\[(.*dependencies)\]/, /^ *\[.*\].*/]];
 const nameRegex = /['|"]?([a-zA-Z0-9\-_]*)['|"]? *=.*/;
 

@@ -1,9 +1,9 @@
 import { determineFileKind } from './utils.js';
-import { Store } from './more.js';
+import { Store } from './store.js';
 import { clearAll } from './render.js';
 
 import { PackageJson } from './parsers/package-json.js';
-import { CargoParser } from './parsers/cargo.js';
+import { CargoParser } from './parsers/cargo-toml.js';
 import { RequirementsTxt } from './parsers/requirements-txt.js';
 import { PipfileParser } from './parsers/pipfile.js';
 import { PyprojectToml } from './parsers/pyproject-toml.js';
@@ -16,9 +16,11 @@ function callRenderer(confType, dep) {
 
 // I think each excecution starts fresh but with same interpretter
 if (!('store' in global)) {
-    global.store = new Store({}, callRenderer);
+    //global.store = new Store({}, callRenderer);
     global.bufferHash = null; // use timestamp for now
 }
+
+const store = new Store(callRenderer);
 
 // do not move to utils, will create cyclic dependency
 function getPackageParser(confType) {
@@ -26,7 +28,7 @@ function getPackageParser(confType) {
         case 'rust':
             return new CargoParser();
         case 'javascript':
-            return new PackageJson();
+            return new PackageJson(store);
         case 'python:requirements':
             return new RequirementsTxt();
         case 'python:pipfile':
