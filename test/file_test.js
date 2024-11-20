@@ -1,7 +1,9 @@
-const assert = require('assert');
-const utils = require('../rplugin/node/vim-package-info/utils');
+import { describe, it } from 'mocha';
+import * as assert from 'node:assert';
 
-const tests = require('./options').tests;
+import { tests } from './options.js';
+
+import * as utils from '../rplugin/node/vim-package-info/utils.js';
 
 tests.forEach((test) => {
     const fileKind = utils.determineFileKind(test.file);

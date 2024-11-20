@@ -1,4 +1,4 @@
-const tests = [
+export const tests = [
     {
         name: 'package.json (Javascript)',
         file: 'package.json',
@@ -203,5 +203,3 @@ const tests = [
         },
     },
 ];
-
-module.exports = { tests };

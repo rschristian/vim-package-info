@@ -1,9 +1,11 @@
-const fs = require('fs');
-const assert = require('assert');
+import { describe, it } from 'mocha';
+import * as assert from 'node:assert';
+import * as fs from 'node:fs';
 
-const Parser = require('../rplugin/node/vim-package-info/parsers/package-json.js').default;
+import { PackageJson } from '../rplugin/node/vim-package-info/parsers/package-json.js';
 
 const file = fs.readFileSync('examples/package.json', 'utf-8');
+const Parser = PackageJson;
 
 describe('package.json', function () {
     it('returns all deps', function () {
