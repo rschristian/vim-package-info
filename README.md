@@ -1,8 +1,8 @@
-# vim-package-info ![](https://travis-ci.org/meain/vim-package-info.svg?branch=master)
+# vim-package-info ![CI status](https://github.com/rschristian/vim-package-info/actions/workflows/ci.yml/badge.svg)
 
 Provides an easy way to see the latest versions of the packages you depend on.
 
-![](https://i.imgur.com/pzIrEkq.png)
+![](./media/package-json-example.png)
 
 **Currently supports:**
 
