@@ -30,7 +30,7 @@ Use your favorite plugin manager to install the plugin.
 I use [vim-plug](https://github.com/junegunn/vim-plug).
 
 ```vim
-Plug 'meain/vim-package-info', { 'do': 'npm install' }
+Plug('rschristian/vim-package-info', {['do'] = 'npm install --omit=dev'})
 ```
 
 After installing the plugin, run `:UpdateRemotePlugins` to register it with Neovim.
