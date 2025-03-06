@@ -36,30 +36,36 @@ function getPackageParser(confType) {
     }
 }
 
-async function run(handle) {
-    globalHandle = handle;
+/**
+ * @param {import('neovim').NvimPlugin} plugin
+ */
+async function run(plugin) {
+    globalHandle = plugin;
     global.bufferHash = +new Date();
-    await clearAll(handle);
+    await clearAll(plugin);
 
-    const buffer = await handle.nvim.buffer;
+    const buffer = await plugin.nvim.buffer;
     const bufferLines = await buffer.getLines();
     const bufferContent = bufferLines.join('\n');
+    const bufferName = await buffer.name;
 
-    const filePath = await handle.nvim.commandOutput("echo expand('%')"); // there should be a better, I just don't know
-    const confType = determineFileKind(filePath);
+    const confType = determineFileKind(bufferName);
 
     const parser = getPackageParser(confType);
     const depList = parser.getDeps(bufferContent);
     parser.updatePackageVersions(depList);
-    parser.updateCurrentVersions(depList, filePath);
+    parser.updateCurrentVersions(depList, bufferName);
 }
 
-export default function (handle) {
-    handle.setOptions({ dev: true });
+/**
+ * @param {import('neovim').NvimPlugin} plugin
+ */
+export default function Plugin(plugin) {
+    plugin.setOptions({ dev: true });
 
-    ['BufEnter', 'InsertLeave', 'TextChanged'].forEach((e) => {
-        handle.registerAutocmd(e, async () => await run(handle), {
+    for (const cmd of ['BufEnter', 'InsertLeave', 'TextChanged']) {
+        plugin.registerAutocmd(cmd, async () => await run(plugin), {
             pattern: '*/package.json,*/Cargo.toml,*/*requirements.txt,*/Pipfile,*/pyproject.toml',
         });
-    });
+    }
 }
