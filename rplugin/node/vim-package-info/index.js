@@ -1,9 +1,9 @@
 import { determineFileKind } from './utils.js';
-import { Store } from './more.js';
+import { Store } from './store.js';
 import { clearAll } from './render.js';
 
 import { PackageJson } from './parsers/package-json.js';
-import { CargoParser } from './parsers/cargo.js';
+import { CargoParser } from './parsers/cargo-toml.js';
 import { RequirementsTxt } from './parsers/requirements-txt.js';
 import { PipfileParser } from './parsers/pipfile.js';
 import { PyprojectToml } from './parsers/pyproject-toml.js';

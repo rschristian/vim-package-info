@@ -1,7 +1,7 @@
-import fs from 'node:fs';
+import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import yaml from 'yaml';
-import lockfile from '@yarnpkg/lockfile';
+import yarnLockFileParse from '@yarnpkg/lockfile';
+import yamlParse from 'yaml';
 
 import { fetcher } from '../utils.js';
 import { drawOne } from '../render.js';
@@ -46,77 +46,38 @@ export class PackageJson {
         }
     }
 
-    updateCurrentVersions(depList, filePath) {
-        let found = false;
+    async updateCurrentVersions(depList, filePath) {
         let dir = path.resolve(path.dirname(filePath));
 
         do {
-            const npm_lock_filename = path.join(dir, 'package-lock.json');
-            const yarn_lock_filename = path.join(dir, 'yarn.lock');
-            const pnpm_lock_filename = path.join(dir, 'pnpm-lock.yaml');
+            const files = (await fs.readdir(dir)).filter((f) => (f == 'package-lock.json' || f == 'yarn.lock' || f == 'pnpm-lock.yaml'));
 
-            if (fs.existsSync(npm_lock_filename)) {
-                found = true;
-                const lockfile_content = JSON.parse(fs.readFileSync(npm_lock_filename, 'utf-8'));
-                const version = lockfile_content['lockfileVersion'];
-                for (let dep of depList) {
-                    for (let dg of depGroups) {
-                        if (version == 3) {
-                            const pkgKey = `node_modules/${dep}`;
-                            if (
-                                pkgKey in lockfile_content['packages'] && dg == 'dependencies'
-                                    ? lockfile_content['packages'][pkgKey]['dev'] === undefined
-                                    : lockfile_content['packages'][pkgKey]['dev'] === true
-                            ) {
-                                global.store.set(LANGUAGE, dep, {
-                                    current_version:
-                                        lockfile_content['packages'][pkgKey]['version'] || null,
-                                });
-                                break;
-                            }
-                        } else if (dg in lockfile_content && dep in lockfile_content[dg]) {
-                            global.store.set(LANGUAGE, dep, {
-                                current_version: lockfile_content[dg][dep]['version'] || null,
-                            });
-                            break;
-                        }
+            for (const file of files) {
+                switch (file) {
+                    case 'package-lock.json': {
+                        const lockfile = JSON.parse(
+                            await fs.readFile(path.join(dir, file), 'utf-8')
+                        );
+                        return parseNPM(lockfile, depList);
+                    }
+                    case 'yarn.lock': {
+                        const lockfile = yarnLockFileParse.parse(
+                            await fs.readFile(path.join(dir, file), 'utf-8')
+                        );
+                        return parseYarn(lockfile, depList);
+                    }
+                    case 'pnpm-lock.yaml': {
+                        const lockfile = yamlParse.parse(
+                            await fs.readFile(path.join(dir, file), 'utf-8')
+                        );
+                        return parsePNPM(lockfile, depList);
+                    }
+                    default: {
+                        dir = path.dirname(dir);
                     }
                 }
-            } else if (fs.existsSync(yarn_lock_filename)) {
-                found = true;
-                const lockfile_content = lockfile.parse(
-                    fs.readFileSync(yarn_lock_filename, 'utf-8'),
-                );
-                for (let dep of depList) {
-                    for (let ld of Object.keys(lockfile_content['object'])) {
-                        if (ld.split('@')[0] === dep) {
-                            const current_version = lockfile_content['object'][ld].version;
-                            global.store.set(LANGUAGE, dep, {
-                                current_version,
-                            });
-                        }
-                    }
-                }
-            } else if (fs.existsSync(pnpm_lock_filename)) {
-                found = true;
-                const lockfile_content = yaml.parse(fs.readFileSync(pnpm_lock_filename, 'utf-8'));
-                for (let dep of depList) {
-                    for (let dg of depGroups) {
-                        if (dg in lockfile_content && dep in lockfile_content[dg]) {
-                            let current_version =
-                                lockfile_content[dg][dep]['version'].match(/([^\(]+)/);
-                            current_version = current_version ? current_version[1] : null;
-                            global.store.set(LANGUAGE, dep, {
-                                current_version,
-                            });
-                            break;
-                        }
-                    }
-                }
-            } else {
-                dir = path.dirname(dir);
             }
-        } while (!found && dir !== path.dirname(dir));
+        } while (path.dirname(dir) !== dir);
     }
 
     async render(handle, dep) {
@@ -128,6 +89,75 @@ export class PackageJson {
         const lineNumbers = getDepLines(bufferLines, markers, nameRegex, dep);
         for (let ln of lineNumbers) {
             await drawOne(handle, ln, info.current_version, info.latest);
+        }
+    }
+}
+
+/**
+ * @param {Record<string, any>} lockfile
+ * @param {string[]} depList
+ */
+function parseNPM(lockfile, depList) {
+    const version = lockfile['lockfileVersion'];
+    for (let dep of depList) {
+        for (let dg of depGroups) {
+            if (version == 3) {
+                const pkgKey = `node_modules/${dep}`;
+                if (
+                    pkgKey in lockfile['packages'] && dg == 'dependencies'
+                        ? lockfile['packages'][pkgKey]['dev'] === undefined
+                        : lockfile['packages'][pkgKey]['dev'] === true
+                ) {
+                    global.store.set(LANGUAGE, dep, {
+                        current_version:
+                            lockfile['packages'][pkgKey]['version'] || null,
+                    });
+                    break;
+                }
+            } else if (dg in lockfile && dep in lockfile[dg]) {
+                global.store.set(LANGUAGE, dep, {
+                    current_version: lockfile[dg][dep]['version'] || null,
+                });
+                break;
+            }
+        }
+    }
+}
+
+/**
+ * @param {Record<string, any>} lockfile
+ * @param {string[]} depList
+ */
+function parseYarn(lockfile, depList) {
+    for (let dep of depList) {
+        for (let ld of Object.keys(lockfile['object'])) {
+            // TODO: this doesn't look correct, namespaced packages likely break this? Need to check on it
+            if (ld.split('@')[0] === dep) {
+                const current_version = lockfile['object'][ld].version;
+                global.store.set(LANGUAGE, dep, {
+                    current_version,
+                });
+            }
+        }
+    }
+}
+
+/**
+ * @param {Record<string, any>} lockfile
+ * @param {string[]} depList
+ */
+function parsePNPM(lockfile, depList) {
+    for (let dep of depList) {
+        for (let dg of depGroups) {
+            if (dg in lockfile && dep in lockfile[dg]) {
+                let current_version =
+                    lockfile[dg][dep]['version'].match(/([^\(]+)/);
+                current_version = current_version ? current_version[1] : null;
+                global.store.set(LANGUAGE, dep, {
+                    current_version,
+                });
+                break;
+            }
         }
     }
 }
