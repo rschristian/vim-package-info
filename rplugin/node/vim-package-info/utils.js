@@ -97,17 +97,10 @@ export async function getConfigValues(nvim) {
     let hl_group = 'NonText';
 
     try {
-        prefix = await nvim.nvim.eval('g:vim_package_json_virutaltext_prefix');
+        prefix = await nvim.nvim.eval('g:vim_package_info_virtualtext_prefix');
     } catch (error) {}
     try {
-        hl_group = await nvim.nvim.eval('g:vim_package_json_virutaltext_highlight');
-    } catch (error) {}
-
-    try {
-        prefix = await nvim.nvim.eval('g:vim_package_info_virutaltext_prefix');
-    } catch (error) {}
-    try {
-        hl_group = await nvim.nvim.eval('g:vim_package_info_virutaltext_highlight');
+        hl_group = await nvim.nvim.eval('g:vim_package_info_virtualtext_highlight');
     } catch (error) {}
 
     return { prefix, hl_group };
