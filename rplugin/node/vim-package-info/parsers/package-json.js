@@ -131,8 +131,7 @@ function parseNPM(lockfile, depList) {
 function parseYarn(lockfile, depList) {
     for (let dep of depList) {
         for (let ld of Object.keys(lockfile['object'])) {
-            // TODO: this doesn't look correct, namespaced packages likely break this? Need to check on it
-            if (ld.split('@')[0] === dep) {
+            if (ld.match(/^@[^@]+|[^@]+/)[0] === dep) {
                 const current_version = lockfile['object'][ld].version;
                 global.store.set(LANGUAGE, dep, {
                     current_version,
