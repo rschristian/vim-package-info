@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import yarnLockFileParse from '@yarnpkg/lockfile';
-import yamlParse from 'yaml';
+import yarnParse  from '@yarnpkg/lockfile';
+import { parse as yamlParse } from 'yaml';
 
 import { fetcher } from '../utils.js';
 import { drawOne } from '../render.js';
@@ -53,23 +53,16 @@ export class PackageJson {
             const files = (await fs.readdir(dir)).filter((f) => (f == 'package-lock.json' || f == 'yarn.lock' || f == 'pnpm-lock.yaml'));
 
             for (const file of files) {
+                const lockfile = await fs.readFile(path.join(dir, file), 'utf-8');
+
                 switch (file) {
                     case 'package-lock.json': {
-                        const lockfile = JSON.parse(
-                            await fs.readFile(path.join(dir, file), 'utf-8')
-                        );
                         return parseNPM(lockfile, depList);
                     }
                     case 'yarn.lock': {
-                        const lockfile = yarnLockFileParse.parse(
-                            await fs.readFile(path.join(dir, file), 'utf-8')
-                        );
                         return parseYarn(lockfile, depList);
                     }
                     case 'pnpm-lock.yaml': {
-                        const lockfile = yamlParse.parse(
-                            await fs.readFile(path.join(dir, file), 'utf-8')
-                        );
                         return parsePNPM(lockfile, depList);
                     }
                     default: {
@@ -94,29 +87,31 @@ export class PackageJson {
 }
 
 /**
- * @param {Record<string, any>} lockfile
+ * @param {string} lockfile
  * @param {string[]} depList
  */
 function parseNPM(lockfile, depList) {
-    const version = lockfile['lockfileVersion'];
+    const parsedLockfile = JSON.parse(lockfile);
+
+    const version = parsedLockfile['parsedLockfileVersion'];
     for (let dep of depList) {
         for (let dg of depGroups) {
             if (version == 3) {
                 const pkgKey = `node_modules/${dep}`;
                 if (
-                    pkgKey in lockfile['packages'] && dg == 'dependencies'
-                        ? lockfile['packages'][pkgKey]['dev'] === undefined
-                        : lockfile['packages'][pkgKey]['dev'] === true
+                    pkgKey in parsedLockfile['packages'] && dg == 'dependencies'
+                        ? parsedLockfile['packages'][pkgKey]['dev'] === undefined
+                        : parsedLockfile['packages'][pkgKey]['dev'] === true
                 ) {
                     global.store.set(LANGUAGE, dep, {
                         current_version:
-                            lockfile['packages'][pkgKey]['version'] || null,
+                            parsedLockfile['packages'][pkgKey]['version'] || null,
                     });
                     break;
                 }
-            } else if (dg in lockfile && dep in lockfile[dg]) {
+            } else if (dg in parsedLockfile && dep in parsedLockfile[dg]) {
                 global.store.set(LANGUAGE, dep, {
-                    current_version: lockfile[dg][dep]['version'] || null,
+                    current_version: parsedLockfile[dg][dep]['version'] || null,
                 });
                 break;
             }
@@ -125,14 +120,16 @@ function parseNPM(lockfile, depList) {
 }
 
 /**
- * @param {Record<string, any>} lockfile
+ * @param {string} lockfile
  * @param {string[]} depList
  */
 function parseYarn(lockfile, depList) {
+    const parsedLockfile = yarnParse(lockfile);
+
     for (let dep of depList) {
-        for (let ld of Object.keys(lockfile['object'])) {
+        for (let ld of Object.keys(parsedLockfile['object'])) {
             if (ld.match(/^@[^@]+|[^@]+/)[0] === dep) {
-                const current_version = lockfile['object'][ld].version;
+                const current_version = parsedLockfile['object'][ld].version;
                 global.store.set(LANGUAGE, dep, {
                     current_version,
                 });
@@ -142,15 +139,17 @@ function parseYarn(lockfile, depList) {
 }
 
 /**
- * @param {Record<string, any>} lockfile
+ * @param {string} lockfile
  * @param {string[]} depList
  */
 function parsePNPM(lockfile, depList) {
+    const parsedLockfile = yamlParse(lockfile);
+
     for (let dep of depList) {
         for (let dg of depGroups) {
-            if (dg in lockfile && dep in lockfile[dg]) {
+            if (dg in parsedLockfile && dep in parsedLockfile[dg]) {
                 let current_version =
-                    lockfile[dg][dep]['version'].match(/([^\(]+)/);
+                    parsedLockfile[dg][dep]['version'].match(/([^\(]+)/);
                 current_version = current_version ? current_version[1] : null;
                 global.store.set(LANGUAGE, dep, {
                     current_version,
