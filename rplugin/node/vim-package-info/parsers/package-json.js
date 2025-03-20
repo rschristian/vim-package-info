@@ -3,47 +3,76 @@ import path from 'node:path';
 import yarnParse  from '@yarnpkg/lockfile';
 import { parse as yamlParse } from 'yaml';
 
-import { fetcher } from '../utils.js';
-import { drawOne } from '../render.js';
-import { getDepLines } from '../render-utils.js';
-
 const LANGUAGE = 'javascript';
 const depGroups = ['dependencies', 'devDependencies'];
-const markers = depGroups.map((prop) => [new RegExp(`["|'](${prop})["|']`), /\}/]);
-const nameRegex = /['|"](.*)['|"] *:/;
+export const markers = depGroups.map((prop) => [new RegExp(`["|'](${prop})["|']`), /\}/]);
+export const nameRegex = /['|"](.*)['|"] *:/;
 
-export class PackageJson {
+export class PackageJsonParser {
+    /**
+     * @param {import('../store.js').Store} store
+     */
+    constructor(store) {
+        this.store = store;
+    }
+
+    /**
+     * @param {string} bufferContent
+     */
     getDeps(bufferContent) {
         const data = JSON.parse(bufferContent);
         const depList = [];
 
-        for (let dg of depGroups) {
-            if (dg in data)
-                for (let dep in data[dg]) {
-                    global.store.set(LANGUAGE, dep, { semver_version: data[dg][dep] });
-                    depList.push(dep);
-                }
+        for (const depGroup of depGroups) {
+            if (!(depGroup in data)) continue;
+
+            for (const dep in data[depGroup]) {
+                this.store.set(LANGUAGE, dep, { semverVersion: data[depGroup][dep] });
+                depList.push(dep);
+            }
         }
 
         return depList;
     }
 
+    /**
+     * @param {string[]} depList
+     */
     updatePackageVersions(depList) {
-        for (let dep of depList) {
-            const fetchURL = `https://registry.npmjs.org/${dep}`;
-            fetcher(fetchURL).then((data) => {
-                const semver_version = global.store.get(LANGUAGE, dep).semver_version;
-                if (/^(http[s]*|file):\/\//.test(semver_version)) return; // don't bother checking in this case
+        const updatePackageVersions = async (iter) => {
+            for (const dep of iter) {
+                const { semverVersion } = this.store.get(LANGUAGE, dep);
+                if (/^(http[s]*|file):\/\//.test(semverVersion)) return; // don't bother checking in this case
 
-                data = JSON.parse(data);
-                let latest = null;
-                let versions = null;
-                if ('dist-tags' in data && 'latest' in data['dist-tags'])
+                const res = await fetch(`https://registry.npmjs.org/${dep}`, {
+                    headers: {
+                        // Returns abbreviated version, with a few less fields:
+                        // https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md
+                        Accept: 'application/vnd.npm.install-v1+json',
+                        'User-Agent': 'vim-package-info (github.com/rschristian/vim-package-info)',
+                    }
+                });
+
+                // TODO: Figure out proper error handling for rplugins
+                if (!res.ok) return;
+                const data = await res.json();
+
+                let latest = null,
+                    versions = null;
+                if ('dist-tags' in data && 'latest' in data['dist-tags']) {
                     latest = data['dist-tags']['latest'];
-                if ('versions' in data) versions = Object.keys(data['versions']);
-                global.store.set(LANGUAGE, dep, { latest, versions });
-            });
-        }
+                }
+                // TODO: Unused for the moment but could be used to show alts
+                // when a major version behind or something
+                if ('versions' in data) {
+                    versions = Object.keys(data['versions']);
+                }
+
+                this.store.set(LANGUAGE, dep, { latest, versions });
+            }
+        };
+
+        Promise.all(Array(5).fill(depList).map(updatePackageVersions));
     }
 
     async updateCurrentVersions(depList, filePath) {
@@ -71,18 +100,6 @@ export class PackageJson {
                 }
             }
         } while (path.dirname(dir) !== dir);
-    }
-
-    async render(handle, dep) {
-        const buffer = await handle.nvim.buffer;
-        const bufferLines = await buffer.getLines();
-
-        const info = global.store.get(LANGUAGE, dep);
-
-        const lineNumbers = getDepLines(bufferLines, markers, nameRegex, dep);
-        for (let ln of lineNumbers) {
-            await drawOne(handle, ln, info.current_version, info.latest);
-        }
     }
 }
 

@@ -11,7 +11,7 @@ const depGroups = ['dependencies', 'dev-dependencies'];
 const markers = [[/\[(.*dependencies)\]/, /^ *\[.*\].*/]];
 const nameRegex = /['|"]?([a-zA-Z0-9\-_]*)['|"]? *=.*/;
 
-export class PyprojectToml {
+export class PyprojectTomlParser {
     getDeps(bufferContent) {
         const data = toml.parse(bufferContent)['tool']['poetry'];
         const depList = [];

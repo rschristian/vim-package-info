@@ -6,7 +6,7 @@ const LANGUAGE = 'python:requirements';
 const markers = null;
 const nameRegex = /^ *([a-zA-Z_]+[a-zA-Z0-9\-_]*).*/;
 
-export class RequirementsTxt {
+export class RequirementsTxtParser {
     getDeps(bufferContent) {
         const depList = [];
 

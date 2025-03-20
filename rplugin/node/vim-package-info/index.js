@@ -1,38 +1,48 @@
-import { determineFileKind } from './utils.js';
+import { determineFileKind, simpleHash } from './utils.js';
 import { Store } from './store.js';
-import { clearAll } from './render.js';
+import { clearAll, drawOne } from './render.js';
+import { getDepLines } from './render-utils.js';
 
-import { PackageJson } from './parsers/package-json.js';
-import { CargoParser } from './parsers/cargo-toml.js';
-import { RequirementsTxt } from './parsers/requirements-txt.js';
-import { PipfileParser } from './parsers/pipfile.js';
-import { PyprojectToml } from './parsers/pyproject-toml.js';
+//import { CargoTomlParser } from './parsers/cargo-toml.js';
+import { PackageJsonParser, markers as jsMarkers, nameRegex as jsRegex } from './parsers/package-json.js';
+//import { PipfileParser } from './parsers/pipfile.js';
+//import { PyprojectTomlParser } from './parsers/pyproject-toml.js';
+//import { RequirementsTxtParser } from './parsers/requirements-txt.js';
 
+const CACHE = new Map();
+
+const config = {
+    'packageJson': { markers: jsMarkers, nameRegex: jsRegex },
+}
+
+/** @type {import('neovim').NvimPlugin | null} */
 let globalHandle = null;
-function callRenderer(confType, dep) {
-    const parser = getPackageParser(confType);
-    if (globalHandle) parser.render(globalHandle, dep);
-}
+const store = new Store(async (lang, dep, depValue) => {
+    if (globalHandle != null) {
+        const buffer = await globalHandle.nvim.buffer;
+        const bufferLines = await buffer.getLines();
 
-// I think each excecution starts fresh but with same interpretter
-if (!('store' in global)) {
-    global.store = new Store({}, callRenderer);
-    global.bufferHash = null; // use timestamp for now
-}
+        const { markers, nameRegex } = config[lang];
+        const lineNumbers = getDepLines(bufferLines, markers, nameRegex, dep);
+        for (let ln of lineNumbers) {
+            await drawOne(globalHandle, ln, depValue.currentVersion, depValue.latest);
+        }
+    }
+});
 
 // do not move to utils, will create cyclic dependency
 function getPackageParser(confType) {
     switch (confType) {
         case 'rust':
-            return new CargoParser();
+            //return new CargoTomlParser();
         case 'javascript':
-            return new PackageJson();
+            return new PackageJsonParser(store);
         case 'python:requirements':
-            return new RequirementsTxt();
+            //return new RequirementsTxtParser();
         case 'python:pipfile':
-            return new PipfileParser();
+            //return new PipfileParser();
         case 'python:pyproject':
-            return new PyprojectToml();
+            //return new PyprojectTomlParser();
     }
 }
 
@@ -41,7 +51,6 @@ function getPackageParser(confType) {
  */
 async function run(plugin) {
     globalHandle = plugin;
-    global.bufferHash = +new Date();
     await clearAll(plugin);
 
     const buffer = await plugin.nvim.buffer;
@@ -49,12 +58,20 @@ async function run(plugin) {
     const bufferContent = bufferLines.join('\n');
     const bufferName = await buffer.name;
 
+    const bufferHash = simpleHash(bufferContent);
+    if (CACHE.get(bufferName) === bufferHash) return;
+
     const confType = determineFileKind(bufferName);
 
     const parser = getPackageParser(confType);
     const depList = parser.getDeps(bufferContent);
-    parser.updatePackageVersions(depList);
-    parser.updateCurrentVersions(depList, bufferName);
+
+    Promise.allSettled([
+        parser.updatePackageVersions(depList),
+        parser.updateCurrentVersions(depList, bufferName),
+    ]);
+
+    CACHE.set(bufferName, bufferHash);
 }
 
 /**

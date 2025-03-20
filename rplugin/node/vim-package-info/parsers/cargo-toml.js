@@ -8,10 +8,10 @@ import { getDepLines } from '../render-utils.js';
 
 const LANGUAGE = 'rust';
 const depGroups = ['dependencies', 'build-dependencies', 'dev-dependencies'];
-const nameRegex = /([a-zA-Z0-9\-_]*) *=.*/;
-const markers = [[/\[(.*dependencies)\]/, /^ *\[.*\].*/]];
+export const markers = [[/\[(.*dependencies)\]/, /^ *\[.*\].*/]];
+export const nameRegex = /([a-zA-Z0-9\-_]*) *=.*/;
 
-export class CargoParser {
+export class CargoTomlParser {
     getDeps(bufferContent) {
         const data = toml.parse(bufferContent);
         const depList = [];
