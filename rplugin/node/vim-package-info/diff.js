@@ -1,3 +1,7 @@
+/**
+ * @param {string} value
+ * @return {number}
+ */
 function ensureNumber(value) {
     const num = Number.parseInt(value || '0', 10);
     return Number.isNaN(num) ? 0 : num;

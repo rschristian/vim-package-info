@@ -45,9 +45,6 @@ export class Store {
             ...value,
         };
 
-        if (this.store[lang][dep].latest) {
-            this.callback(lang, dep, this.store[lang][dep]);
-        }
-
+        this.callback(lang, dep, this.store[lang][dep]);
     }
 }

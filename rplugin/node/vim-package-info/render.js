@@ -16,11 +16,12 @@ const configValues = {
 
 /**
  * @param {import('neovim').NvimPlugin} nvimPlugin
+ * @param {import('neovim').Buffer} buffer
  * @param {number} lineNum
  * @param {string} current
  * @param {string} latest
  */
-export async function drawOne(nvimPlugin, lineNum, current, latest) {
+export async function drawOne(nvimPlugin, buffer, lineNum, current, latest) {
     if (initialized == false) {
         try {
             configValues.prefix = /** @type {string} */ (await nvimPlugin.nvim.eval('g:vim_package_info_virtualtext_prefix'));
@@ -32,9 +33,7 @@ export async function drawOne(nvimPlugin, lineNum, current, latest) {
         initialized = true;
     }
 
-    const { prefix, hlGroup } = configValues;
-    const lp = format(current, prefix, hlGroup, latest);
+    const lp = format(current, configValues.prefix, configValues.hlGroup, latest);
 
-    const buffer = await nvimPlugin.nvim.buffer;
     await buffer.setVirtualText(1, lineNum, lp);
 }

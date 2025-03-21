@@ -19,7 +19,7 @@ import * as requirementsTxt from './parsers/requirements-txt.js';
  * @param {string} filePath
  * @return {ParserKey}
  */
-export function determineFileKind(filePath) {
+function determineFileKind(filePath) {
     const filename = path.basename(filePath);
 
     if (filename === 'package.json') {
@@ -49,7 +49,7 @@ const store = new Store(async (lang, dep, depValue) => {
         const { markers, nameRegex } = parsersConfig[lang];
         const lineNumbers = getDepLines(bufferLines, markers, nameRegex, dep);
         for (let ln of lineNumbers) {
-            await drawOne(globalThis.nvimPlugin, ln, depValue.currentVersion, depValue.latest);
+            await drawOne(globalThis.nvimPlugin, buffer, ln, depValue.currentVersion, depValue.latest);
         }
     }
 });
@@ -57,7 +57,7 @@ const store = new Store(async (lang, dep, depValue) => {
 /**
  * @type {import('./types.d.ts').ParsersConfig}
  */
-export const parsersConfig = {
+const parsersConfig = {
     'javascript:package.json': {
         markers: pkgJson.markers,
         nameRegex: pkgJson.nameRegex,
