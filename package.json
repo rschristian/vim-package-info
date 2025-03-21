@@ -9,7 +9,6 @@
   },
   "dependencies": {
     "@yarnpkg/lockfile": "^1.1.0",
-    "follow-redirects": "^1.7.0",
     "toml": "^3.0.0",
     "yaml": "^2.4.2"
   },

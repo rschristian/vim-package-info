@@ -1,12 +1,19 @@
-import { fetcher } from '../utils.js';
-import { drawOne } from '../render.js';
-import { getDepLines } from '../render-utils.js';
+const LANGUAGE = 'python:requirements.txt';
+export const markers = null;
+export const nameRegex = /^ *([a-zA-Z_]+[a-zA-Z0-9\-_]*).*/;
 
-const LANGUAGE = 'python:requirements';
-const markers = null;
-const nameRegex = /^ *([a-zA-Z_]+[a-zA-Z0-9\-_]*).*/;
+export class Parser {
+    /**
+     * @param {import('../store.js').Store} store
+     */
+    constructor(store) {
+        this.store = store;
+    }
 
-export class RequirementsTxt {
+    /**
+     * @param {string} bufferContent
+     * @return {string[]}
+     */
     getDeps(bufferContent) {
         const depList = [];
 
@@ -14,19 +21,19 @@ export class RequirementsTxt {
             const vals = line.match(nameRegex);
             if (vals !== null && vals !== undefined && 1 in vals) {
                 const dep = vals[1].trim();
-                let semver_version = null;
+                let semverVersion = null;
 
-                const version_part = line.split('==')[1];
-                if (version_part) {
-                    const version_matches = version_part.match(/(\d+\.)?(\d+\.)?(\*|\d+)/);
-                    if (version_matches.length > 0) {
-                        semver_version = version_matches[0];
+                const versionPart = line.split('==')[1];
+                if (versionPart) {
+                    const versionMatches = versionPart.match(/(\d+\.)?(\d+\.)?(\*|\d+)/);
+                    if (versionMatches.length > 0) {
+                        semverVersion = versionMatches[0];
                     }
                 }
 
-                global.store.set(LANGUAGE, dep, {
-                    semver_version,
-                    current_version: semver_version,
+                this.store.set(LANGUAGE, dep, {
+                    semverVersion,
+                    currentVersion: semverVersion,
                 });
                 depList.push(dep);
             }
@@ -35,36 +42,35 @@ export class RequirementsTxt {
         return depList;
     }
 
-    updatePackageVersions(depList) {
+    /**
+     * @param {string[]} depList
+     */
+    async updatePackageVersions(depList) {
         for (let dep of depList) {
-            if ('latest' in global.store.get(LANGUAGE, dep)) return;
+            if ('latest' in this.store.get(LANGUAGE, dep)) return;
 
-            const fetchURL = `https://pypi.org/pypi/${dep}/json`;
-            fetcher(fetchURL).then((data) => {
-                data = JSON.parse(data);
-                const latest = data.info.version;
-                const versions = Object.keys(data['releases']);
-                global.store.set(LANGUAGE, dep, { latest, versions });
+            const res = await fetch(`https://pypi.org/pypi/${dep}/json`, {
+                headers: {
+                    'User-Agent': 'vim-package-info (github.com/rschristian/vim-package-info)',
+                }
             });
+
+            // TODO: Figure out proper error handling for rplugins
+            if (!res.ok) return;
+            const data = await res.json();
+
+            const latest = data.info.version;
+            const versions = Object.keys(data['releases']);
+            this.store.set(LANGUAGE, dep, { latest, versions });
         }
     }
 
-    updateCurrentVersions() {
+    /**
+     * @param {string[]} depList
+     * @param {string} filePath
+     */
+    updateCurrentVersions(depList, filePath) {
         // no specific lockfile, copy semver_version to current_version
         // taken care in getDeps
-    }
-
-    async render(handle, dep) {
-        // TODO: maybe move this to a baseclass
-        const buffer = await handle.nvim.buffer;
-        const bufferLines = await buffer.getLines();
-
-        const info = global.store.get(LANGUAGE, dep);
-
-        // TODO: switch from latest_version to latest_semver satisfied version
-        const lineNumbers = getDepLines(bufferLines, markers, nameRegex, dep, true);
-        for (let ln of lineNumbers) {
-            await drawOne(handle, ln, info.current_version, info.latest);
-        }
     }
 }

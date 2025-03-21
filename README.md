@@ -46,13 +46,13 @@ Needs virtual text support. ( Neovim 0.3.2 )
 #### Change prefix
 
 ```
-let g:vim_package_info_virutaltext_prefix = '  ¤ '
+let g:vim_package_info_virtualtext_prefix = '  ¤ '
 ```
 
 ### Change highlight group
 
 ```
-let g:vim_package_info_virutaltext_highlight = 'NonText'
+let g:vim_package_info_virtualtext_highlight = 'NonText'
 ```
 
 There are three other highlight groups that you can change.
@@ -68,7 +68,7 @@ hi VimPackageInfoMajor guifg=#F44336
 
 The plugin might conflict with [ALE](https://github.com/w0rp/ale) or any other plugins that use `virtualtext`.
 This is because `virtualtext` context is the same for all the plugins and if one clears the `virtualtext`
-it will clear the `virutaltext` that was made by all plugins.
+it will clear the `virtualtext` that was made by all plugins.
 
 Not a lot can be done about this, but in the case of ALE you can checkout [#14](https://github.com/meain/vim-package-info/issues/14).
 

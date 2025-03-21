@@ -1,114 +1,107 @@
 import path from 'node:path';
-import followRedirects from 'follow-redirects';
 
-export function determineFileKind(filePath) {
+import { Store } from './store.js';
+import { drawOne } from './render.js';
+import { getDepLines } from './render-utils.js';
+
+import * as cargoToml from './parsers/cargo-toml.js';
+import * as pkgJson from './parsers/package-json.js';
+import * as pipfile from './parsers/pipfile.js';
+import * as pyprojectToml from './parsers/pyproject-toml.js';
+import * as requirementsTxt from './parsers/requirements-txt.js';
+
+/**
+ * @typedef {import('./types.d.ts').ParserKey} ParserKey
+ * @typedef {import('./types.d.ts').GenericParser} GenericParser
+ */
+
+/**
+ * @param {string} filePath
+ * @return {ParserKey}
+ */
+function determineFileKind(filePath) {
     const filename = path.basename(filePath);
 
-    if (filename.match(/^.*?requirements.txt$/)) {
-        return 'python:requirements';
+    if (filename === 'package.json') {
+        return 'javascript:package.json';
     }
-    if (filename.match(/^pyproject.toml$/)) {
-        return 'python:pyproject';
-    }
-    if (filename.match(/^Pipfile/)) {
+    if (filename === 'Pipfile') {
         return 'python:pipfile';
     }
-    if (filename.match(/^Cargo.toml$/)) {
-        return 'rust';
+    if (filename === 'pyproject.toml') {
+        return 'python:pyproject.toml';
     }
-    if (filename.match(/^package.json$/)) {
-        return 'javascript';
+    if (filename.match(/^.*?requirements.txt$/)) {
+        return 'python:requirements.txt';
     }
-}
-
-// TODO: make use of this
-export function getUrl(dep, confType) {
-    switch (confType) {
-        case 'javascript':
-            return `https://registry.npmjs.org/${dep}`;
-        case 'rust':
-            return `https://crates.io/api/v1/crates/${dep}`;
-        case 'python:requirements':
-        case 'python:pipfile':
-        case 'python:pyproject':
-            return `https://pypi.org/pypi/${dep}/json`;
-        default:
-            return false;
+    if (filename === 'Cargo.toml') {
+        return 'rust:cargo.toml';
     }
+
+    throw new Error(`Unsupported file: ${filePath}`);
 }
 
-// TODO: make this the only way to get this info + do for markers
-export function getNameRegex(confType) {
-    return {
-        javascript: /['|"](.*)['|"] *:/,
-        rust: /([a-zA-Z0-9\-_]*) *=.*/,
-        'python:requirements': /^ *([a-zA-Z_]+[a-zA-Z0-9\-_]*).*/,
-        'python:pipfile': /"?([a-zA-Z0-9\-_]*)"? *=.*/,
-        'python:pyproject': /['|"]?([a-zA-Z0-9\-_]*)['|"]? *=.*/,
-    }[confType];
-}
+const store = new Store(async (lang, dep, depValue) => {
+    if (globalThis.nvimPlugin) {
+        const buffer = await globalThis.nvimPlugin.nvim.buffer;
+        const bufferLines = await buffer.getLines();
 
-export function getDepMarkers(confType) {
-    // [ [start, end], [start, end] ]
-    return {
-        javascript: [
-            [/["|'](dependencies)["|']/, /\}/],
-            [/["|'](devDependencies)["|']/, /\}/],
-        ],
-        rust: [[/\[(.*dependencies)\]/, /^ *\[.*\].*/]],
-        'python:requirements': null,
-        'python:pipfile': [
-            [/\[(packages)\]/, /^ *\[.*\].*/],
-            [/\[(dev-packages)\]/, /^ *\[.*\].*/],
-        ],
-        'python:pyproject': [[/\[(.*dependencies)\]/, /^ *\[.*\].*/]],
-    }[confType];
-}
-
-export async function fetcher(url) {
-    return new Promise((accept, reject) => {
-        const options = {
-            headers: {
-                'User-Agent': 'vim-package-info (github.com/meain/vim-package-info)',
-            },
-        };
-        if (url)
-            followRedirects.https
-                .get(url, options, (resp) => {
-                    let data = '';
-                    resp.on('data', (chunk) => {
-                        data += chunk;
-                    });
-                    resp.on('end', () => {
-                        accept(data);
-                    });
-                })
-                .on('error', (err) => {
-                    console.log('Error: ' + err.message);
-                });
-        else {
-            console.log('Error: no url provided');
+        const { markers, nameRegex } = parsersConfig[lang];
+        const lineNumbers = getDepLines(bufferLines, markers, nameRegex, dep);
+        for (let ln of lineNumbers) {
+            await drawOne(globalThis.nvimPlugin, buffer, ln, depValue.currentVersion, depValue.latest);
         }
-    });
+    }
+});
+
+/**
+ * @type {import('./types.d.ts').ParsersConfig}
+ */
+const parsersConfig = {
+    'javascript:package.json': {
+        markers: pkgJson.markers,
+        nameRegex: pkgJson.nameRegex,
+        parser: new pkgJson.Parser(store),
+    },
+    'python:pipfile': {
+        markers: pipfile.markers,
+        nameRegex: pipfile.nameRegex,
+        parser: new pipfile.Parser(store),
+    },
+    'python:pyproject.toml': {
+        markers: pyprojectToml.markers,
+        nameRegex: pyprojectToml.nameRegex,
+        parser: new pyprojectToml.Parser(store),
+    },
+    'python:requirements.txt': {
+        markers: requirementsTxt.markers,
+        nameRegex: requirementsTxt.nameRegex,
+        parser: new requirementsTxt.Parser(store),
+    },
+    'rust:cargo.toml': {
+        markers: cargoToml.markers,
+        nameRegex: cargoToml.nameRegex,
+        parser: new cargoToml.Parser(store),
+    },
+};
+
+/**
+ * @param {string} bufferName
+ * @return {GenericParser}
+ */
+export function getPackageParser(bufferName) {
+    const confType = determineFileKind(bufferName);
+    return parsersConfig[confType].parser;
 }
 
-export async function getConfigValues(nvim) {
-    let prefix = '  ¤ ';
-    let hl_group = 'NonText';
-
-    try {
-        prefix = await nvim.nvim.eval('g:vim_package_json_virutaltext_prefix');
-    } catch (error) {}
-    try {
-        hl_group = await nvim.nvim.eval('g:vim_package_json_virutaltext_highlight');
-    } catch (error) {}
-
-    try {
-        prefix = await nvim.nvim.eval('g:vim_package_info_virutaltext_prefix');
-    } catch (error) {}
-    try {
-        hl_group = await nvim.nvim.eval('g:vim_package_info_virutaltext_highlight');
-    } catch (error) {}
-
-    return { prefix, hl_group };
+/**
+ * @param {string} str
+ * @returns {number}
+ */
+export function simpleHash(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return hash;
 }
