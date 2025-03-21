@@ -43,7 +43,7 @@ export class Parser {
     /**
      * @param {string[]} depList
      */
-    updatePackageVersions(depList) {
+    async updatePackageVersions(depList) {
         const updatePackageVersions = async (iter) => {
             for (const dep of iter) {
                 const { semverVersion } = this.store.get(LANGUAGE, dep);
@@ -78,7 +78,9 @@ export class Parser {
             }
         };
 
-        Promise.all(Array(5).fill(depList).map(updatePackageVersions));
+        await Promise.all(
+            Array(5).fill(depList.values()).map(updatePackageVersions)
+        );
     }
 
     /**
