@@ -32,7 +32,16 @@ export class Parser {
             if (!(depGroup in data)) continue;
 
             for (const dep in data[depGroup]) {
-                this.store.set(LANGUAGE, dep, { semverVersion: data[depGroup][dep] });
+                const semverVersion = data[depGroup][dep];
+
+                // We intentionally include packages with empty versions -- it's quite
+                // handy when manually adding a package, the user won't have to manually
+                // look up the latest version themselves.
+
+                // There's seemingly no comprehensive list out there but _I think_ this roughly covers it?
+                if (/^(https?|file|workspace|link):/.test(semverVersion)) continue;
+
+                this.store.set(LANGUAGE, dep, { semverVersion });
                 depList.push(dep);
             }
         }
@@ -46,9 +55,6 @@ export class Parser {
     async updatePackageVersions(depList) {
         const updatePackageVersions = async (iter) => {
             for (const dep of iter) {
-                const { semverVersion } = this.store.get(LANGUAGE, dep);
-                if (/^(http[s]*|file):\/\//.test(semverVersion)) return; // don't bother checking in this case
-
                 const res = await fetch(`https://registry.npmjs.org/${dep}`, {
                     headers: {
                         // Returns abbreviated version, with a few less fields:
@@ -123,29 +129,21 @@ export class Parser {
 function parseNPM(store, lockfile, depList) {
     const parsedLockfile = JSON.parse(lockfile);
 
-    const version = parsedLockfile['parsedLockfileVersion'];
-    for (let dep of depList) {
-        for (let dg of depGroups) {
-            if (version == 3) {
-                const pkgKey = `node_modules/${dep}`;
-                if (
-                    pkgKey in parsedLockfile['packages'] && dg == 'dependencies'
-                        ? parsedLockfile['packages'][pkgKey]['dev'] === undefined
-                        : parsedLockfile['packages'][pkgKey]['dev'] === true
-                ) {
-                    store.set(LANGUAGE, dep, {
-                        currentVersion:
-                            parsedLockfile['packages'][pkgKey]['version'] || null,
-                    });
-                    break;
-                }
-            } else if (dg in parsedLockfile && dep in parsedLockfile[dg]) {
-                store.set(LANGUAGE, dep, {
-                    currentVersion: parsedLockfile[dg][dep]['version'] || null,
-                });
-                break;
+    const lockfileVersion = parsedLockfile['lockfileVersion'];
+
+    for (const dep of depList) {
+        let currentVersion = null;
+
+        if (lockfileVersion >= 2) {
+            const pkgKey = `node_modules/${dep}`;
+            if (pkgKey in parsedLockfile['packages']) {
+                currentVersion = parsedLockfile['packages'][pkgKey]['version'];
             }
+        } else if (dep in parsedLockfile['dependencies']) {
+            currentVersion = parsedLockfile['dependencies'][dep]['version'];
         }
+
+        store.set(LANGUAGE, dep, { currentVersion });
     }
 }
 
@@ -155,15 +153,13 @@ function parseNPM(store, lockfile, depList) {
  * @param {string[]} depList
  */
 function parseYarn(store, lockfile, depList) {
-    const parsedLockfile = yarnParse(lockfile);
+    const parsedLockfile = yarnParse.parse(lockfile);
 
-    for (let dep of depList) {
-        for (let ld of Object.keys(parsedLockfile['object'])) {
-            if (ld.match(/^@[^@]+|[^@]+/)[0] === dep) {
-                const currentVersion = parsedLockfile['object'][ld].version;
-                store.set(LANGUAGE, dep, {
-                    currentVersion,
-                });
+    for (const dep of depList) {
+        for (const id of Object.keys(parsedLockfile['object'])) {
+            if (id.match(/^@[^@]+|[^@]+/)[0] === dep) {
+                const currentVersion = parsedLockfile['object'][id].version;
+                store.set(LANGUAGE, dep, { currentVersion });
             }
         }
     }
@@ -177,17 +173,18 @@ function parseYarn(store, lockfile, depList) {
 function parsePNPM(store, lockfile, depList) {
     const parsedLockfile = yamlParse(lockfile);
 
-    for (let dep of depList) {
-        for (let dg of depGroups) {
-            if (dg in parsedLockfile && dep in parsedLockfile[dg]) {
-                let currentVersion =
-                    parsedLockfile[dg][dep]['version'].match(/([^\(]+)/);
-                currentVersion = currentVersion ? currentVersion[1] : null;
-                store.set(LANGUAGE, dep, {
-                    currentVersion,
-                });
-                break;
-            }
+    const importers = parsedLockfile.importers['.'];
+    const deps = depGroups.reduce((acc, key) => {
+        return { ...acc, ...importers[key] };
+    }, {});
+
+    for (const dep of depList) {
+        if (dep in deps) {
+            let currentVersion = deps[dep]['version'].match(/([^\(]+)/);
+            currentVersion = currentVersion ? currentVersion[1] : null;
+            store.set(LANGUAGE, dep, {
+                currentVersion,
+            });
         }
     }
 }

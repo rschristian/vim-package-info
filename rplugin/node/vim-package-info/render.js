@@ -16,23 +16,30 @@ const configValues = {
 
 /**
  * @param {import('neovim').NvimPlugin} nvimPlugin
+ */
+export async function initConfig(nvimPlugin) {
+    if (initialized == false) {
+        const virtualTextPrefix = await nvimPlugin.nvim.lua('return vim.g.vim_package_info_virtualtext_prefix');
+        if (virtualTextPrefix && typeof virtualTextPrefix === 'string') {
+            configValues.prefix = virtualTextPrefix;
+        }
+
+        const virtualTextHlGroup = await nvimPlugin.nvim.lua('return vim.g.vim_package_info_virtualtext_highlight');
+        if (virtualTextHlGroup && typeof virtualTextHlGroup === 'string') {
+            configValues.hlGroup = virtualTextHlGroup;
+        }
+
+        initialized = true;
+    }
+}
+
+/**
  * @param {import('neovim').Buffer} buffer
  * @param {number} lineNum
  * @param {string} current
  * @param {string} latest
  */
-export async function drawOne(nvimPlugin, buffer, lineNum, current, latest) {
-    if (initialized == false) {
-        try {
-            configValues.prefix = /** @type {string} */ (await nvimPlugin.nvim.eval('g:vim_package_info_virtualtext_prefix'));
-        } catch {}
-        try {
-            configValues.hlGroup = /** @type {string} */ (await nvimPlugin.nvim.eval('g:vim_package_info_virtualtext_highlight'));
-        } catch {}
-
-        initialized = true;
-    }
-
+export async function drawOne(buffer, lineNum, current, latest) {
     const lp = format(current, configValues.prefix, configValues.hlGroup, latest);
 
     await buffer.setVirtualText(1, lineNum, lp);

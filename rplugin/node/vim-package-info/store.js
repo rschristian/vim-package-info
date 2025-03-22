@@ -2,18 +2,16 @@
  * @typedef {import('./types.d.ts').ParserKey} ParserKey
  */
 
-const initialStore = {
-    'javascript:package.json': {},
-    'python:pipfile': {},
-    'python:pyproject.toml': {},
-    'python:requirements.txt': {},
-    'rust:cargo.toml': {},
-}
-
 // A super minimal store implementation with callback on insert event
 export class Store {
     /** @type {Record<ParserKey, Record<string, any>>} */
-    store = initialStore;
+    store = {
+        'javascript:package.json': {},
+        'python:pipfile': {},
+        'python:pyproject.toml': {},
+        'python:requirements.txt': {},
+        'rust:cargo.toml': {},
+    };
 
     /**
      * @param {(lang: ParserKey, dep: string, value: Record<string, any>) => void} callbackFn

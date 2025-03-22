@@ -1,6 +1,7 @@
 import { getPackageParser, simpleHash } from './utils.js';
-import { clearAll } from './render.js';
+import { clearAll, initConfig } from './render.js';
 
+let initialized = false;
 const CACHE = new Map();
 
 /**
@@ -8,7 +9,13 @@ const CACHE = new Map();
  */
 async function run(plugin) {
     globalThis.nvimPlugin = plugin;
-    await clearAll(plugin);
+    if (!initialized) {
+        await Promise.all([
+            clearAll(plugin),
+            initConfig(plugin),
+        ]);
+        initialized = true;
+    }
 
     const buffer = await plugin.nvim.buffer;
     const bufferLines = await buffer.getLines();
@@ -21,7 +28,7 @@ async function run(plugin) {
     const parser = getPackageParser(bufferName);
     const depList = parser.getDeps(bufferContent);
 
-    Promise.allSettled([
+    await Promise.allSettled([
         parser.updatePackageVersions(depList),
         parser.updateCurrentVersions(depList, bufferName),
     ]);

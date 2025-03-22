@@ -49,7 +49,7 @@ const store = new Store(async (lang, dep, depValue) => {
         const { markers, nameRegex } = parsersConfig[lang];
         const lineNumbers = getDepLines(bufferLines, markers, nameRegex, dep);
         for (let ln of lineNumbers) {
-            await drawOne(globalThis.nvimPlugin, buffer, ln, depValue.currentVersion, depValue.latest);
+            await drawOne(buffer, ln, depValue.currentVersion, depValue.latest);
         }
     }
 });
