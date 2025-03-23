@@ -34,13 +34,12 @@ export async function initConfig(nvimPlugin) {
 }
 
 /**
- * @param {import('neovim').Buffer} buffer
  * @param {number} lineNum
  * @param {string} current
  * @param {string} latest
  */
-export async function drawOne(buffer, lineNum, current, latest) {
+export async function drawOne(lineNum, current, latest) {
     const lp = format(current, configValues.prefix, configValues.hlGroup, latest);
 
-    await buffer.setVirtualText(1, lineNum, lp);
+    await globalThis.buffer.setVirtualText(1, lineNum, lp);
 }

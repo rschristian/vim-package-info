@@ -19,6 +19,8 @@ async function run(plugin) {
 
     const buffer = await plugin.nvim.buffer;
     const bufferLines = await buffer.getLines();
+    globalThis.buffer = buffer;
+    globalThis.bufferLines = bufferLines;
     const bufferContent = bufferLines.join('\n');
     const bufferName = await buffer.name;
 

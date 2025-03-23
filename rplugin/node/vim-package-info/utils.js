@@ -42,14 +42,11 @@ function determineFileKind(filePath) {
 }
 
 const store = new Store(async (lang, dep, depValue) => {
-    if (globalThis.nvimPlugin) {
-        const buffer = await globalThis.nvimPlugin.nvim.buffer;
-        const bufferLines = await buffer.getLines();
-
+    if (globalThis.bufferLines) {
         const { markers, nameRegex } = parsersConfig[lang];
-        const lineNumbers = getDepLines(bufferLines, markers, nameRegex, dep);
+        const lineNumbers = getDepLines(globalThis.bufferLines, markers, nameRegex, dep);
         for (let ln of lineNumbers) {
-            await drawOne(buffer, ln, depValue.currentVersion, depValue.latest);
+            await drawOne(ln, depValue.currentVersion, depValue.latest);
         }
     }
 });
