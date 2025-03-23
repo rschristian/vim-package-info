@@ -55,6 +55,9 @@ export class Parser {
     async updatePackageVersions(depList) {
         const updatePackageVersions = async (iter) => {
             for (const dep of iter) {
+                const stored = this.store.get(LANGUAGE, dep);
+                if (stored && 'latestVersion' in stored && 'allVersions' in stored) continue;
+
                 const res = await fetch(`https://registry.npmjs.org/${dep}`, {
                     headers: {
                         // Returns abbreviated version, with a few less fields:
@@ -68,19 +71,19 @@ export class Parser {
                 if (!res.ok) return;
                 const data = await res.json();
 
-                let latest = null,
-                    versions = null;
+                let latestVersion = '',
+                    allVersions = /** @type {string[]} */ ([]);
                 if ('dist-tags' in data && 'latest' in data['dist-tags']) {
-                    latest = data['dist-tags']['latest'];
+                    latestVersion = data['dist-tags']['latest'];
                 }
 
                 // TODO: Unused for the moment but could be used to show alts
                 // when a major version behind or something
                 if ('versions' in data) {
-                    versions = Object.keys(data['versions']);
+                    allVersions = Object.keys(data['versions']);
                 }
 
-                this.store.set(LANGUAGE, dep, { latest, versions });
+                this.store.set(LANGUAGE, dep, { latestVersion, allVersions });
             }
         };
 

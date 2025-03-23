@@ -1,5 +1,6 @@
 /**
  * @typedef {import('./types.d.ts').ParserKey} ParserKey
+ * @typedef {import('./types.d.ts').StoreItem} StoreItem
  */
 
 // A super minimal store implementation with callback on insert event
@@ -23,6 +24,7 @@ export class Store {
     /**
      * @param {ParserKey} lang
      * @param {string} dep
+     * @return {Partial<StoreItem> | undefined}
      */
     get(lang, dep) {
         return this.store[lang][dep];
@@ -31,7 +33,8 @@ export class Store {
     /**
      * @param {ParserKey} lang
      * @param {string} dep
-     * @param {{ semverVersion?: string, currentVersion?: string, latest?: string, versions?: string[] }} value
+     * @param {Partial<StoreItem>} value
+     * @return {void}
      */
     set(lang, dep, value) {
         if (this.store[lang][dep] === undefined) {

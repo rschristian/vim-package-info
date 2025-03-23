@@ -16,6 +16,13 @@ export type ParserConfig = {
 
 export type ParsersConfig = Record<ParserKey, ParserConfig>;
 
+export type StoreItem = {
+    semverVersion: string;
+    currentVersion: string;
+    latestVersion: string;
+    allVersions: string[];
+}
+
 declare global {
     var nvimPlugin: NvimPlugin;
 }

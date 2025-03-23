@@ -42,8 +42,10 @@ test('Should return latest & all versions for all deps from package file', async
     await parser.updatePackageVersions(depList);
 
     for (const dep of depList) {
-        assert.ok(store.store['javascript:package.json'][dep].latest);
-        assert.ok(store.store['javascript:package.json'][dep].versions);
+        const stored = store.get('javascript:package.json', dep);
+        assert.ok(stored);
+        assert.ok(stored.latestVersion);
+        assert.ok(stored.allVersions);
     }
 });
 
