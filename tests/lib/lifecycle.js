@@ -1,4 +1,6 @@
-import { getPackageFile } from './utils.js';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import url from 'node:url';
 
 import { Store } from '../../rplugin/node/vim-package-info/store.js';
 import * as cargoToml from '../../rplugin/node/vim-package-info/parsers/cargo-toml.js';
@@ -7,32 +9,39 @@ import * as pipfile from '../../rplugin/node/vim-package-info/parsers/pipfile.js
 import * as pyprojectToml from '../../rplugin/node/vim-package-info/parsers/pyproject-toml.js';
 import * as requirementsTxt from '../../rplugin/node/vim-package-info/parsers/requirements-txt.js';
 
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+
 const parsers = {
-    'javascript:package.json': pkgJson.Parser,
-    'python:pipfile': pipfile.Parser,
-    'python:pyproject.toml': pyprojectToml.Parser,
-    'python:requirements.txt': requirementsTxt.Parser,
-    'rust:cargo.toml': cargoToml.Parser,
+    'package.json': pkgJson.Parser,
+    'pipfile': pipfile.Parser,
+    'pyproject.toml': pyprojectToml.Parser,
+    'requirements.txt': requirementsTxt.Parser,
+    'cargo.toml': cargoToml.Parser,
 };
 
 /**
- * @typedef {keyof parsers} ParserKey
  * @typedef {import('../../rplugin/node/vim-package-info/types.d.ts').GenericParser} GenericParser
  */
 
 /**
- * @param {ParserKey} packageFileName
- * @return {Promise<{ store: Store, parser: GenericParser, packageFile: string }>}
+ * @param {string} name
+ * @return {Promise<{ store: Store, parser: GenericParser, packageFilePath: string, packageFileContent: string }>}
  */
-export async function setup(packageFileName) {
+export async function setup(name) {
+    const fixture = path.join(__dirname, '..', 'fixtures', name);
+
+    const fixtureFiles = await fs.readdir(fixture);
+    const packageFileName = /** @type {keyof parsers | undefined} */ (fixtureFiles.find(file => Object.keys(parsers).includes(file)));
+    if (!packageFileName) {
+        throw new Error(`No supported package file found in ${fixture}`);
+    }
+
     const store = new Store(() => {});
+    const parser = new parsers[packageFileName](store);
+    const packageFilePath = path.join(fixture, packageFileName);
+    const packageFileContent = await fs.readFile(packageFilePath, 'utf-8');
 
-    const Parser = parsers[packageFileName];
-    const p = new Parser(store);
-
-    const file = await getPackageFile(packageFileName.replace(':', '/'));
-
-    return { store, parser: p, packageFile: file };
+    return { store, parser, packageFilePath, packageFileContent};
 }
 
 

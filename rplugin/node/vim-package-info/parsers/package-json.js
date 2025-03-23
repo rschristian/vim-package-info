@@ -94,27 +94,31 @@ export class Parser {
      * @param {string} filePath
      */
     async updateCurrentVersions(depList, filePath) {
-        let dir = path.resolve(path.dirname(filePath));
+        const packageFileDirName = path.dirname(filePath);
+        let dir = path.resolve(packageFileDirName);
 
         do {
             const files = (await fs.readdir(dir)).filter((f) => (f == 'package-lock.json' || f == 'yarn.lock' || f == 'pnpm-lock.yaml'));
 
-            for (const file of files) {
-                const lockfile = await fs.readFile(path.join(dir, file), 'utf-8');
+            if (!files.length) {
+                dir = path.dirname(dir);
+                continue;
+            }
 
-                switch (file) {
-                    case 'package-lock.json': {
-                        return parseNPM(this.store, lockfile, depList);
-                    }
-                    case 'yarn.lock': {
-                        return parseYarn(this.store, lockfile, depList);
-                    }
-                    case 'pnpm-lock.yaml': {
-                        return parsePNPM(this.store, lockfile, depList);
-                    }
-                    default: {
-                        dir = path.dirname(dir);
-                    }
+            // Only one lockfile should exist at a time, don't bother trying to support more
+            const file = files[0];
+            const lockfile = await fs.readFile(path.join(dir, file), 'utf-8');
+            const relativePackageFilePath = path.relative(dir, packageFileDirName) || '.';
+
+            switch (file) {
+                case 'package-lock.json': {
+                    return parseNPM(this.store, lockfile, depList, relativePackageFilePath);
+                }
+                case 'yarn.lock': {
+                    return parseYarn(this.store, lockfile, depList);
+                }
+                case 'pnpm-lock.yaml': {
+                    return parsePNPM(this.store, lockfile, depList, relativePackageFilePath);
                 }
             }
         } while (path.dirname(dir) !== dir);
@@ -125,8 +129,9 @@ export class Parser {
  * @param {Store} store
  * @param {string} lockfile
  * @param {string[]} depList
+ * @param {string} relativePackageFilePath
  */
-function parseNPM(store, lockfile, depList) {
+function parseNPM(store, lockfile, depList, relativePackageFilePath) {
     const parsedLockfile = JSON.parse(lockfile);
 
     const lockfileVersion = parsedLockfile['lockfileVersion'];
@@ -135,8 +140,14 @@ function parseNPM(store, lockfile, depList) {
         let currentVersion = null;
 
         if (lockfileVersion >= 2) {
-            const pkgKey = `node_modules/${dep}`;
+            // Need to support workspace packages resolving to non-root install locations
+            let pkgKey = `${relativePackageFilePath}/node_modules/${dep}`;
             if (pkgKey in parsedLockfile['packages']) {
+                currentVersion = parsedLockfile['packages'][pkgKey]['version'];
+            }
+
+            pkgKey = `node_modules/${dep}`;
+            if (!currentVersion && pkgKey in parsedLockfile['packages']) {
                 currentVersion = parsedLockfile['packages'][pkgKey]['version'];
             }
         } else if (dep in parsedLockfile['dependencies']) {
@@ -169,11 +180,12 @@ function parseYarn(store, lockfile, depList) {
  * @param {Store} store
  * @param {string} lockfile
  * @param {string[]} depList
+ * @param {string} relativePackageFilePath
  */
-function parsePNPM(store, lockfile, depList) {
+function parsePNPM(store, lockfile, depList, relativePackageFilePath) {
     const parsedLockfile = yamlParse(lockfile);
 
-    const importers = parsedLockfile.importers['.'];
+    const importers = parsedLockfile.importers[relativePackageFilePath];
     const deps = depGroups.reduce((acc, key) => {
         return { ...acc, ...importers[key] };
     }, {});
@@ -182,9 +194,7 @@ function parsePNPM(store, lockfile, depList) {
         if (dep in deps) {
             let currentVersion = deps[dep]['version'].match(/([^\(]+)/);
             currentVersion = currentVersion ? currentVersion[1] : null;
-            store.set(LANGUAGE, dep, {
-                currentVersion,
-            });
+            store.set(LANGUAGE, dep, { currentVersion });
         }
     }
 }
