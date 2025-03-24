@@ -9,10 +9,16 @@ export const markers = depGroups.map((prop) => [new RegExp(`["|'](${prop})["|']`
 export const nameRegex = /['|"](.*)['|"] *:/;
 
 /**
+ * @typedef {import('../types.d.ts').GenericParser} GenericParser
  * @typedef {import('../store.js').Store} Store
+ * @typedef {import('../store.js').StoreItem} StoreItem
+ * @typedef {import('../types.d.ts').RenderCallback} RenderCallback
  */
 
-export class Parser {
+/**
+ * @implements {GenericParser} - Only warns for missing methods. TS is super lacking here.
+ */
+export class PkgJsonParser {
     /**
      * @param {Store} store
      */
@@ -21,10 +27,33 @@ export class Parser {
     }
 
     /**
-     * @param {string} bufferContent
-     * @return {string[]}
+     * @type {GenericParser['getLockFile']}
      */
-    getDeps(bufferContent) {
+    async getLockFile(packageFilePath) {
+        let dir = path.resolve(path.dirname(packageFilePath));
+
+        do {
+            const files = (await fs.readdir(dir)).filter((f) => (f == 'package-lock.json' || f == 'yarn.lock' || f == 'pnpm-lock.yaml'));
+
+            if (!files.length) {
+                dir = path.dirname(dir);
+                continue;
+            }
+
+            // Only one lockfile should exist at a time, don't bother trying to support more
+            const lockFilePath = path.join(dir, files[0]);
+            const lockFileContent = await fs.readFile(lockFilePath, 'utf-8');
+
+            return { lockFilePath, lockFileContent };
+        } while (path.dirname(dir) !== dir);
+
+        throw new Error('No lockfile found');
+    }
+
+    /**
+     * @type {GenericParser['getDepsFromPackageFile']}
+     */
+    getDepsFromPackageFile(bufferContent) {
         const data = JSON.parse(bufferContent);
         const depList = [];
 
@@ -50,9 +79,9 @@ export class Parser {
     }
 
     /**
-     * @param {string[]} depList
+     * @type {GenericParser['getRegistryVersions']}
      */
-    async updatePackageVersions(depList) {
+    async getRegistryVersions(depList, cb) {
         const updatePackageVersions = async (iter) => {
             for (const dep of iter) {
                 const stored = this.store.get(LANGUAGE, dep);
@@ -84,6 +113,7 @@ export class Parser {
                 }
 
                 this.store.set(LANGUAGE, dep, { latestVersion, allVersions });
+                if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (this.store.get(LANGUAGE, dep)), markers, nameRegex);
             }
         };
 
@@ -93,38 +123,22 @@ export class Parser {
     }
 
     /**
-     * @param {string[]} depList
-     * @param {string} filePath
+     * @type {GenericParser['getLockFileVersions']}
      */
-    async updateCurrentVersions(depList, filePath) {
-        const packageFileDirName = path.dirname(filePath);
-        let dir = path.resolve(packageFileDirName);
+    async getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent, cb) {
+        const relativePackageFilePath = path.relative(path.dirname(lockFilePath), path.dirname(packageFilePath)) || '.';
 
-        do {
-            const files = (await fs.readdir(dir)).filter((f) => (f == 'package-lock.json' || f == 'yarn.lock' || f == 'pnpm-lock.yaml'));
-
-            if (!files.length) {
-                dir = path.dirname(dir);
-                continue;
+        switch (path.basename(lockFilePath)) {
+            case 'package-lock.json': {
+                return parseNPM(this.store, lockFileContent, depList, relativePackageFilePath, cb);
             }
-
-            // Only one lockfile should exist at a time, don't bother trying to support more
-            const file = files[0];
-            const lockfile = await fs.readFile(path.join(dir, file), 'utf-8');
-            const relativePackageFilePath = path.relative(dir, packageFileDirName) || '.';
-
-            switch (file) {
-                case 'package-lock.json': {
-                    return parseNPM(this.store, lockfile, depList, relativePackageFilePath);
-                }
-                case 'yarn.lock': {
-                    return parseYarn(this.store, lockfile, depList);
-                }
-                case 'pnpm-lock.yaml': {
-                    return parsePNPM(this.store, lockfile, depList, relativePackageFilePath);
-                }
+            case 'yarn.lock': {
+                return parseYarn(this.store, lockFileContent, depList, cb);
             }
-        } while (path.dirname(dir) !== dir);
+            case 'pnpm-lock.yaml': {
+                return parsePNPM(this.store, lockFileContent, depList, relativePackageFilePath, cb);
+            }
+        }
     }
 }
 
@@ -133,8 +147,9 @@ export class Parser {
  * @param {string} lockfile
  * @param {string[]} depList
  * @param {string} relativePackageFilePath
+ * @param {RenderCallback} [cb]
  */
-function parseNPM(store, lockfile, depList, relativePackageFilePath) {
+function parseNPM(store, lockfile, depList, relativePackageFilePath, cb) {
     const parsedLockfile = JSON.parse(lockfile);
 
     const lockfileVersion = parsedLockfile['lockfileVersion'];
@@ -158,6 +173,7 @@ function parseNPM(store, lockfile, depList, relativePackageFilePath) {
         }
 
         store.set(LANGUAGE, dep, { currentVersion });
+        if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
     }
 }
 
@@ -165,8 +181,9 @@ function parseNPM(store, lockfile, depList, relativePackageFilePath) {
  * @param {Store} store
  * @param {string} lockfile
  * @param {string[]} depList
+ * @param {RenderCallback} [cb]
  */
-function parseYarn(store, lockfile, depList) {
+function parseYarn(store, lockfile, depList, cb) {
     const parsedLockfile = yarnParse.parse(lockfile);
 
     for (const dep of depList) {
@@ -174,6 +191,7 @@ function parseYarn(store, lockfile, depList) {
             if (id.match(/^@[^@]+|[^@]+/)[0] === dep) {
                 const currentVersion = parsedLockfile['object'][id].version;
                 store.set(LANGUAGE, dep, { currentVersion });
+                if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
             }
         }
     }
@@ -184,8 +202,9 @@ function parseYarn(store, lockfile, depList) {
  * @param {string} lockfile
  * @param {string[]} depList
  * @param {string} relativePackageFilePath
+ * @param {RenderCallback} [cb]
  */
-function parsePNPM(store, lockfile, depList, relativePackageFilePath) {
+function parsePNPM(store, lockfile, depList, relativePackageFilePath, cb) {
     const parsedLockfile = yamlParse(lockfile);
 
     const importers = parsedLockfile.importers[relativePackageFilePath];
@@ -198,6 +217,7 @@ function parsePNPM(store, lockfile, depList, relativePackageFilePath) {
             let currentVersion = deps[dep]['version'].match(/([^\(]+)/);
             currentVersion = currentVersion ? currentVersion[1] : null;
             store.set(LANGUAGE, dep, { currentVersion });
+            if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
         }
     }
 }

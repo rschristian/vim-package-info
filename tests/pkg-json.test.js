@@ -6,7 +6,7 @@ import { setup } from './lib/lifecycle.js';
 test('Should return all deps from package file', async () => {
     const { store, parser, packageFileContent } = await setup('javascript/npm');
 
-    const depList = parser.getDeps(packageFileContent);
+    const depList = parser.getDepsFromPackageFile(packageFileContent);
 
     assert.equal(depList, [
         '@rschristian/intrepid-design',
@@ -38,8 +38,8 @@ test('Should return all deps from package file', async () => {
 test('Should return latest & all versions for all deps from package file', async () => {
     const { store, parser, packageFileContent } = await setup('javascript/npm');
 
-    const depList = parser.getDeps(packageFileContent);
-    await parser.updatePackageVersions(depList);
+    const depList = parser.getDepsFromPackageFile(packageFileContent);
+    await parser.getRegistryVersions(depList);
 
     for (const dep of depList) {
         const stored = store.get('javascript:package.json', dep);
@@ -52,8 +52,9 @@ test('Should return latest & all versions for all deps from package file', async
 test('Should return current versions from package-lock.json', async () => {
     const { store, parser, packageFilePath, packageFileContent } = await setup('javascript/npm');
 
-    const depList = parser.getDeps(packageFileContent);
-    await parser.updateCurrentVersions(depList, packageFilePath);
+    const depList = parser.getDepsFromPackageFile(packageFileContent);
+    const { lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath);
+    await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent);
 
     assert.equal(store.store['javascript:package.json'], {
         '@rschristian/intrepid-design':     { semverVersion: '',         currentVersion: '0.1.6' },
@@ -72,8 +73,9 @@ test('Should return current versions from package-lock.json', async () => {
 test('Should return current versions from yarn.lock', async () => {
     const { store, parser, packageFilePath, packageFileContent } = await setup('javascript/yarn');
 
-    const depList = parser.getDeps(packageFileContent);
-    await parser.updateCurrentVersions(depList, packageFilePath);
+    const depList = parser.getDepsFromPackageFile(packageFileContent);
+    const { lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath);
+    await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent);
 
     assert.equal(store.store['javascript:package.json'], {
         '@rschristian/intrepid-design':     { semverVersion: '',         currentVersion: '0.1.6' },
@@ -92,8 +94,9 @@ test('Should return current versions from yarn.lock', async () => {
 test('Should return current versions from pnpm-lock.yaml', async () => {
     const { store, parser, packageFilePath, packageFileContent } = await setup('javascript/pnpm');
 
-    const depList = parser.getDeps(packageFileContent);
-    await parser.updateCurrentVersions(depList, packageFilePath);
+    const depList = parser.getDepsFromPackageFile(packageFileContent);
+    const { lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath);
+    await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent);
 
     assert.equal(store.store['javascript:package.json'], {
         '@rschristian/intrepid-design':     { semverVersion: '',         currentVersion: '0.1.6' },
@@ -112,8 +115,9 @@ test('Should return current versions from pnpm-lock.yaml', async () => {
 test('Should return current versions from monorepo package-lock.json', async () => {
     let { store, parser, packageFilePath, packageFileContent } = await setup('javascript/npm-workspace');
 
-    let depList = parser.getDeps(packageFileContent);
-    await parser.updateCurrentVersions(depList, packageFilePath);
+    let depList = parser.getDepsFromPackageFile(packageFileContent);
+    let { lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath);
+    await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent);
 
     assert.equal(store.store['javascript:package.json'], {
         '@types/node':                      { semverVersion: '^22.13.10', currentVersion: '22.13.11' },
@@ -123,8 +127,9 @@ test('Should return current versions from monorepo package-lock.json', async () 
 
     ({ store, parser, packageFilePath, packageFileContent } = await setup('javascript/npm-workspace/packages/package-a'));
 
-    depList = parser.getDeps(packageFileContent);
-    await parser.updateCurrentVersions(depList, packageFilePath);
+    depList = parser.getDepsFromPackageFile(packageFileContent);
+    ({ lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath));
+    await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent);
 
     assert.equal(store.store['javascript:package.json'], {
         '@preact/preset-vite':              { semverVersion: '^2.10.1',   currentVersion: '2.10.1' },
@@ -140,8 +145,9 @@ test('Should return current versions from monorepo package-lock.json', async () 
 
     ({ store, parser, packageFilePath, packageFileContent } = await setup('javascript/npm-workspace/packages/package-b'));
 
-    depList = parser.getDeps(packageFileContent);
-    await parser.updateCurrentVersions(depList, packageFilePath);
+    depList = parser.getDepsFromPackageFile(packageFileContent);
+    ({ lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath));
+    await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent);
 
     assert.equal(store.store['javascript:package.json'], {
         'sade':                             { semverVersion: '^1.8.1',    currentVersion: '1.8.1' },
@@ -159,8 +165,9 @@ test('Should return current versions from monorepo package-lock.json', async () 
 test('Should return current versions from monorepo yarn.lock', async () => {
     let { store, parser, packageFilePath, packageFileContent } = await setup('javascript/yarn-workspace');
 
-    let depList = parser.getDeps(packageFileContent);
-    await parser.updateCurrentVersions(depList, packageFilePath);
+    let depList = parser.getDepsFromPackageFile(packageFileContent);
+    let { lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath);
+    await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent);
 
     assert.equal(store.store['javascript:package.json'], {
         '@types/node':                      { semverVersion: '^22.13.10', currentVersion: '22.13.11' },
@@ -170,8 +177,9 @@ test('Should return current versions from monorepo yarn.lock', async () => {
 
     ({ store, parser, packageFilePath, packageFileContent } = await setup('javascript/yarn-workspace/packages/package-a'));
 
-    depList = parser.getDeps(packageFileContent);
-    await parser.updateCurrentVersions(depList, packageFilePath);
+    depList = parser.getDepsFromPackageFile(packageFileContent);
+    ({ lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath));
+    await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent);
 
     assert.equal(store.store['javascript:package.json'], {
         '@preact/preset-vite':              { semverVersion: '^2.10.1',   currentVersion: '2.10.1' },
@@ -187,8 +195,9 @@ test('Should return current versions from monorepo yarn.lock', async () => {
 
     ({ store, parser, packageFilePath, packageFileContent } = await setup('javascript/yarn-workspace/packages/package-b'));
 
-    depList = parser.getDeps(packageFileContent);
-    await parser.updateCurrentVersions(depList, packageFilePath);
+    depList = parser.getDepsFromPackageFile(packageFileContent);
+    ({ lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath));
+    await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent);
 
     assert.equal(store.store['javascript:package.json'], {
         'sade':                             { semverVersion: '^1.8.1',    currentVersion: '1.8.1' },
@@ -206,8 +215,9 @@ test('Should return current versions from monorepo yarn.lock', async () => {
 test('Should return current versions from monorepo pnpm-lock.yaml', async () => {
     let { store, parser, packageFilePath, packageFileContent } = await setup('javascript/pnpm-workspace');
 
-    let depList = parser.getDeps(packageFileContent);
-    await parser.updateCurrentVersions(depList, packageFilePath);
+    let depList = parser.getDepsFromPackageFile(packageFileContent);
+    let { lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath);
+    await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent);
 
     assert.equal(store.store['javascript:package.json'], {
         '@types/node':                      { semverVersion: '^22.13.10', currentVersion: '22.13.11' },
@@ -217,8 +227,9 @@ test('Should return current versions from monorepo pnpm-lock.yaml', async () => 
 
     ({ store, parser, packageFilePath, packageFileContent } = await setup('javascript/pnpm-workspace/packages/package-a'));
 
-    depList = parser.getDeps(packageFileContent);
-    await parser.updateCurrentVersions(depList, packageFilePath);
+    depList = parser.getDepsFromPackageFile(packageFileContent);
+    ({ lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath));
+    await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent);
 
     assert.equal(store.store['javascript:package.json'], {
         '@preact/preset-vite':              { semverVersion: '^2.10.1',   currentVersion: '2.10.1' },
@@ -234,8 +245,9 @@ test('Should return current versions from monorepo pnpm-lock.yaml', async () => 
 
     ({ store, parser, packageFilePath, packageFileContent } = await setup('javascript/pnpm-workspace/packages/package-b'));
 
-    depList = parser.getDeps(packageFileContent);
-    await parser.updateCurrentVersions(depList, packageFilePath);
+    depList = parser.getDepsFromPackageFile(packageFileContent);
+    ({ lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath));
+    await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent);
 
     assert.equal(store.store['javascript:package.json'], {
         'sade':                             { semverVersion: '^1.8.1',    currentVersion: '1.8.1' },

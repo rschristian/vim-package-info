@@ -12,7 +12,7 @@ import * as requirementsTxt from '../../rplugin/node/vim-package-info/parsers/re
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
 const parsers = {
-    'package.json': pkgJson.Parser,
+    'package.json': pkgJson.PkgJsonParser,
     'pipfile': pipfile.Parser,
     'pyproject.toml': pyprojectToml.Parser,
     'requirements.txt': requirementsTxt.Parser,
@@ -20,12 +20,8 @@ const parsers = {
 };
 
 /**
- * @typedef {import('../../rplugin/node/vim-package-info/types.d.ts').GenericParser} GenericParser
- */
-
-/**
  * @param {string} name
- * @return {Promise<{ store: Store, parser: GenericParser, packageFilePath: string, packageFileContent: string }>}
+ * @return {Promise<{ store: Store, parser: pkgJson.PkgJsonParser, packageFilePath: string, packageFileContent: string }>}
  */
 export async function setup(name) {
     const fixture = path.join(__dirname, '..', 'fixtures', name);

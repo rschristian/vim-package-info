@@ -15,7 +15,7 @@ export class Store {
     };
 
     /**
-     * @param {(lang: ParserKey, dep: string, value: Record<string, any>) => void} callbackFn
+     * @param {(lang: ParserKey, dep: string, value: Record<string, any>) => void} [callbackFn]
      */
     constructor(callbackFn) {
         this.callback = callbackFn;
@@ -46,6 +46,6 @@ export class Store {
             ...value,
         };
 
-        this.callback(lang, dep, this.store[lang][dep]);
+        //this.callback(lang, dep, this.store[lang][dep]);
     }
 }

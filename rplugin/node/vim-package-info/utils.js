@@ -13,6 +13,7 @@ import * as requirementsTxt from './parsers/requirements-txt.js';
 /**
  * @typedef {import('./types.d.ts').ParserKey} ParserKey
  * @typedef {import('./types.d.ts').GenericParser} GenericParser
+ * @typedef {import('./types.d.ts').ParserConfig} ParserConfig
  */
 
 /**
@@ -41,54 +42,50 @@ function determineFileKind(filePath) {
     throw new Error(`Unsupported file: ${filePath}`);
 }
 
-const store = new Store(async (lang, dep, depValue) => {
-    if (globalThis.bufferLines) {
-        const { markers, nameRegex } = parsersConfig[lang];
-        const lineNumbers = getDepLines(globalThis.bufferLines, markers, nameRegex, dep);
-        for (let ln of lineNumbers) {
-            await drawOne(ln, depValue.currentVersion, depValue.latest);
-        }
-    }
-});
+//const store = new Store(async (lang, dep, depValue) => {
+//    if (globalThis.bufferLines) {
+//        const { markers, nameRegex } = parsersConfig[lang];
+//        const lineNumbers = getDepLines(globalThis.bufferLines, markers, nameRegex, dep);
+//        for (let ln of lineNumbers) {
+//            await drawOne(ln, depValue.currentVersion, depValue.latest);
+//        }
+//    }
+//});
 
-/**
- * @type {import('./types.d.ts').ParsersConfig}
- */
 const parsersConfig = {
     'javascript:package.json': {
         markers: pkgJson.markers,
         nameRegex: pkgJson.nameRegex,
-        parser: new pkgJson.Parser(store),
+        parser: pkgJson.PkgJsonParser,
     },
     'python:pipfile': {
         markers: pipfile.markers,
         nameRegex: pipfile.nameRegex,
-        parser: new pipfile.Parser(store),
+        parser: pipfile.Parser,
     },
     'python:pyproject.toml': {
         markers: pyprojectToml.markers,
         nameRegex: pyprojectToml.nameRegex,
-        parser: new pyprojectToml.Parser(store),
+        parser: pyprojectToml.Parser,
     },
     'python:requirements.txt': {
         markers: requirementsTxt.markers,
         nameRegex: requirementsTxt.nameRegex,
-        parser: new requirementsTxt.Parser(store),
+        parser: requirementsTxt.Parser,
     },
     'rust:cargo.toml': {
         markers: cargoToml.markers,
         nameRegex: cargoToml.nameRegex,
-        parser: new cargoToml.Parser(store),
+        parser: cargoToml.Parser,
     },
 };
 
 /**
  * @param {string} bufferName
- * @return {GenericParser}
  */
-export function getPackageParser(bufferName) {
-    const confType = determineFileKind(bufferName);
-    return parsersConfig[confType].parser;
+export function getParserConfig(bufferName) {
+    //const confType = determineFileKind(bufferName);
+    return pkgJson.PkgJsonParser
 }
 
 /**
@@ -101,4 +98,25 @@ export function simpleHash(str) {
         hash = str.charCodeAt(i) + ((hash << 5) - hash);
     }
     return hash;
+}
+
+/**
+ * @param {import('neovim').NvimPlugin} nvimPlugin
+ * @return {Promise<{ virtualTextPrefix: string, virtualTextHlGroup: string }>}
+ */
+export async function initRenderConfig(nvimPlugin) {
+    let virtualTextPrefix = '  ¤ ',
+        virtualTextHlGroup = 'NonText';
+
+    const globalVirtualTextPrefix = await nvimPlugin.nvim.lua('return vim.g.vim_package_info_virtualtext_prefix');
+    if (globalVirtualTextPrefix && typeof globalVirtualTextPrefix === 'string') {
+        virtualTextPrefix = globalVirtualTextPrefix;
+    }
+
+    const globalVirtualTextHlGroup = await nvimPlugin.nvim.lua('return vim.g.vim_package_info_virtualtext_highlight');
+    if (globalVirtualTextHlGroup && typeof globalVirtualTextHlGroup === 'string') {
+        virtualTextHlGroup = globalVirtualTextHlGroup;
+    }
+
+    return { virtualTextPrefix, virtualTextHlGroup };
 }
