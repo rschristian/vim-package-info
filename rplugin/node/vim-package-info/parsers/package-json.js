@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import yarnParse  from '@yarnpkg/lockfile';
+import yarnParse from '@yarnpkg/lockfile';
 import { parse as yamlParse } from 'yaml';
 
 import { store } from '../store.js';
@@ -23,7 +23,9 @@ export const PkgJsonParser = {
         let dir = path.resolve(path.dirname(packageFilePath));
 
         do {
-            const files = (await fs.readdir(dir)).filter((f) => (f == 'package-lock.json' || f == 'yarn.lock' || f == 'pnpm-lock.yaml'));
+            const files = (await fs.readdir(dir)).filter(
+                (f) => f == 'package-lock.json' || f == 'yarn.lock' || f == 'pnpm-lock.yaml',
+            );
 
             if (!files.length) {
                 dir = path.dirname(dir);
@@ -75,7 +77,7 @@ export const PkgJsonParser = {
                         // https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md
                         Accept: 'application/vnd.npm.install-v1+json',
                         'User-Agent': 'vim-package-info (github.com/rschristian/vim-package-info)',
-                    }
+                    },
                 });
 
                 // TODO: Figure out proper error handling for rplugins
@@ -95,16 +97,15 @@ export const PkgJsonParser = {
                 }
 
                 store.set(LANGUAGE, dep, { latestVersion, allVersions });
-                if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
+                if (cb) cb(dep, store.get(LANGUAGE, dep), markers, nameRegex);
             }
         };
 
-        await Promise.all(
-            Array(5).fill(depList.values()).map(updatePackageVersions)
-        );
+        await Promise.all(Array(5).fill(depList.values()).map(updatePackageVersions));
     },
     getLockFileVersions: async (depList, packageFilePath, lockFilePath, lockFileContent, cb) => {
-        const relativePackageFilePath = path.relative(path.dirname(lockFilePath), path.dirname(packageFilePath)) || '.';
+        const relativePackageFilePath =
+            path.relative(path.dirname(lockFilePath), path.dirname(packageFilePath)) || '.';
 
         switch (path.basename(lockFilePath)) {
             case 'package-lock.json': {
@@ -117,7 +118,7 @@ export const PkgJsonParser = {
                 return parsePNPM(store, lockFileContent, depList, relativePackageFilePath, cb);
             }
         }
-    }
+    },
 };
 
 /**
@@ -151,7 +152,7 @@ function parseNPM(store, lockfile, depList, relativePackageFilePath, cb) {
         }
 
         store.set(LANGUAGE, dep, { currentVersion });
-        if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
+        if (cb) cb(dep, store.get(LANGUAGE, dep), markers, nameRegex);
     }
 }
 
@@ -169,7 +170,7 @@ function parseYarn(store, lockfile, depList, cb) {
             if (id.match(/^@[^@]+|[^@]+/)[0] === dep) {
                 const currentVersion = parsedLockfile['object'][id].version;
                 store.set(LANGUAGE, dep, { currentVersion });
-                if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
+                if (cb) cb(dep, store.get(LANGUAGE, dep), markers, nameRegex);
             }
         }
     }
@@ -195,7 +196,7 @@ function parsePNPM(store, lockfile, depList, relativePackageFilePath, cb) {
             let currentVersion = deps[dep]['version'].match(/([^\(]+)/);
             currentVersion = currentVersion ? currentVersion[1] : null;
             store.set(LANGUAGE, dep, { currentVersion });
-            if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
+            if (cb) cb(dep, store.get(LANGUAGE, dep), markers, nameRegex);
         }
     }
 }

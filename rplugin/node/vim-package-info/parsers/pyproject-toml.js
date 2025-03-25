@@ -49,7 +49,7 @@ export const PyprojectTomlParser = {
                 const res = await fetch(`https://pypi.org/pypi/${dep}/json`, {
                     headers: {
                         'User-Agent': 'vim-package-info (github.com/rschristian/vim-package-info)',
-                    }
+                    },
                 });
 
                 // TODO: Figure out proper error handling for rplugins
@@ -60,13 +60,11 @@ export const PyprojectTomlParser = {
                 const allVersions = Object.keys(data['releases']);
 
                 store.set(LANGUAGE, dep, { latestVersion, allVersions });
-                if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
+                if (cb) cb(dep, store.get(LANGUAGE, dep), markers, nameRegex);
             }
         };
 
-        await Promise.all(
-            Array(5).fill(depList.values()).map(updatePackageVersions)
-        );
+        await Promise.all(Array(5).fill(depList.values()).map(updatePackageVersions));
     },
     getLockFileVersions: async (depList, packageFilePath, lockFilePath, lockFileContent, cb) => {
         const parsedLockfile = toml.parse(lockFileContent);
@@ -77,7 +75,7 @@ export const PyprojectTomlParser = {
             store.set(LANGUAGE, dep, {
                 currentVersion: pack.version || null,
             });
-            if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
+            if (cb) cb(dep, store.get(LANGUAGE, dep), markers, nameRegex);
         }
-    }
+    },
 };

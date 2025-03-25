@@ -51,7 +51,7 @@ export const RequirementsTxtParser = {
                 const res = await fetch(`https://pypi.org/pypi/${dep}/json`, {
                     headers: {
                         'User-Agent': 'vim-package-info (github.com/rschristian/vim-package-info)',
-                    }
+                    },
                 });
 
                 // TODO: Figure out proper error handling for rplugins
@@ -62,16 +62,14 @@ export const RequirementsTxtParser = {
                 const allVersions = Object.keys(data['releases']);
 
                 store.set(LANGUAGE, dep, { latestVersion, allVersions });
-                if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
+                if (cb) cb(dep, store.get(LANGUAGE, dep), markers, nameRegex);
             }
         };
 
-        await Promise.all(
-            Array(5).fill(depList.values()).map(updatePackageVersions)
-        );
+        await Promise.all(Array(5).fill(depList.values()).map(updatePackageVersions));
     },
     getLockFileVersions: async (depList, packageFilePath, lockFilePath, lockFileContent, cb) => {
         // There's no specific lockfile so currentVersion is the same as semverVersion and
         // set in getDepsFromPackageFile to skip an extra iteration
-    }
+    },
 };

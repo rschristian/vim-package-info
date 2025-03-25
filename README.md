@@ -6,20 +6,20 @@ Provides an easy way to see the latest versions of the packages you depend on.
 
 **Currently supports:**
 
--   javascript:
-    -   `package.json`
--   rust:
-    -   `Cargo.toml`
--   python:
-    -   `requirements.txt`
-    -   `Pipfile`
-    -   `pyproject.toml`
+- javascript:
+  - `package.json`
+- rust:
+  - `Cargo.toml`
+- python:
+  - `requirements.txt`
+  - `Pipfile`
+  - `pyproject.toml`
 
 Default colors:
 
--   `green`: patch update
--   `cyan`: minor update
--   `red`: major update
+- `green`: patch update
+- `cyan`: minor update
+- `red`: major update
 
 ## Installation
 
@@ -76,6 +76,6 @@ Not a lot can be done about this, but in the case of ALE you can checkout [#14](
 
 Other options for you to checkout if this does not work for you
 
--   [akinsho/dependency-assist.nvim](https://github.com/akinsho/dependency-assist.nvim)
--   [vuki656/package-info.nvim](https://github.com/vuki656/package-info.nvim)
--   [mhinz/vim-crates](https://github.com/mhinz/vim-crates)
+- [akinsho/dependency-assist.nvim](https://github.com/akinsho/dependency-assist.nvim)
+- [vuki656/package-info.nvim](https://github.com/vuki656/package-info.nvim)
+- [mhinz/vim-crates](https://github.com/mhinz/vim-crates)

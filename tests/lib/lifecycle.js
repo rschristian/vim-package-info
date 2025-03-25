@@ -27,7 +27,7 @@ export async function setupTest(name) {
     const fixture = path.join(__dirname, '..', 'fixtures', name);
 
     const fixtureFiles = await fs.readdir(fixture);
-    const packageFileName = fixtureFiles.find(file => packageFileNames.includes(file));
+    const packageFileName = fixtureFiles.find((file) => packageFileNames.includes(file));
     if (!packageFileName) {
         throw new Error(`No supported package file found in ${fixture}`);
     }

@@ -71,12 +71,16 @@ export async function initRenderConfig(nvimPlugin) {
     let virtualTextPrefix = '  ¤ ',
         virtualTextHlGroup = 'NonText';
 
-    const globalVirtualTextPrefix = await nvimPlugin.nvim.lua('return vim.g.vim_package_info_virtualtext_prefix');
+    const globalVirtualTextPrefix = await nvimPlugin.nvim.lua(
+        'return vim.g.vim_package_info_virtualtext_prefix',
+    );
     if (globalVirtualTextPrefix && typeof globalVirtualTextPrefix === 'string') {
         virtualTextPrefix = globalVirtualTextPrefix;
     }
 
-    const globalVirtualTextHlGroup = await nvimPlugin.nvim.lua('return vim.g.vim_package_info_virtualtext_highlight');
+    const globalVirtualTextHlGroup = await nvimPlugin.nvim.lua(
+        'return vim.g.vim_package_info_virtualtext_highlight',
+    );
     if (globalVirtualTextHlGroup && typeof globalVirtualTextHlGroup === 'string') {
         virtualTextHlGroup = globalVirtualTextHlGroup;
     }

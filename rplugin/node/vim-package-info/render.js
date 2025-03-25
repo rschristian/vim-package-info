@@ -7,7 +7,6 @@ import { format } from './render-utils.js';
  */
 export async function clearAll(buffer, virtualTextNamespace) {
     await buffer.clearNamespace({ nsId: virtualTextNamespace });
-
 }
 
 /**

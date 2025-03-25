@@ -49,7 +49,7 @@ export const CargoTomlParser = {
                 const res = await fetch(`https://crates.io/api/v1/crates/${dep}`, {
                     headers: {
                         'User-Agent': 'vim-package-info (github.com/rschristian/vim-package-info)',
-                    }
+                    },
                 });
 
                 // TODO: Figure out proper error handling for rplugins
@@ -60,13 +60,11 @@ export const CargoTomlParser = {
                 const allVersions = data['versions'].map((v) => v.num);
 
                 store.set(LANGUAGE, dep, { latestVersion, allVersions });
-                if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
+                if (cb) cb(dep, store.get(LANGUAGE, dep), markers, nameRegex);
             }
         };
 
-        await Promise.all(
-            Array(5).fill(depList.values()).map(updatePackageVersions)
-        );
+        await Promise.all(Array(5).fill(depList.values()).map(updatePackageVersions));
     },
     getLockFileVersions: async (depList, packageFilePath, lockFilePath, lockFileContent, cb) => {
         const parsedLockfile = toml.parse(lockFileContent);
@@ -77,7 +75,7 @@ export const CargoTomlParser = {
             store.set(LANGUAGE, dep, {
                 currentVersion: pack.version || null,
             });
-            if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
+            if (cb) cb(dep, store.get(LANGUAGE, dep), markers, nameRegex);
         }
-    }
+    },
 };

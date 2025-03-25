@@ -21,7 +21,7 @@ async function run(plugin) {
     if (!initialized) {
         const [config, virtualTextNamespace] = await Promise.all([
             initRenderConfig(plugin),
-            plugin.nvim.createNamespace('vim-package-info')
+            plugin.nvim.createNamespace('vim-package-info'),
         ]);
         renderConfig = { ...config, virtualTextNamespace };
 
@@ -39,9 +39,12 @@ async function run(plugin) {
 
         const lineNumber = getDepLine(packageFileLines, markers, nameRegex, depName);
         if (lineNumber) {
-            await drawOne(buffer, renderConfig, lineNumber, { currentVersion: depValue.currentVersion, latestVersion: depValue.latestVersion });
+            await drawOne(buffer, renderConfig, lineNumber, {
+                currentVersion: depValue.currentVersion,
+                latestVersion: depValue.latestVersion,
+            });
         }
-    }
+    };
 
     const parser = getParserConfig(packageFilePath);
 
@@ -53,7 +56,8 @@ async function run(plugin) {
     if (
         FILE_CACHE.get(packageFilePath) === bufferHash &&
         FILE_CACHE.get(lockFilePath) === lockfileHash
-    ) return;
+    )
+        return;
 
     // TODO: Branches below this point need a bit more thought, still not 100% sure on them
     if (FILE_CACHE.get(packageFilePath) !== bufferHash) {
@@ -62,7 +66,13 @@ async function run(plugin) {
     }
 
     if (FILE_CACHE.get(lockFilePath) !== lockfileHash) {
-        await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent, cb);
+        await parser.getLockFileVersions(
+            depList,
+            packageFilePath,
+            lockFilePath,
+            lockFileContent,
+            cb,
+        );
     }
 
     FILE_CACHE.set(packageFilePath, bufferHash);
