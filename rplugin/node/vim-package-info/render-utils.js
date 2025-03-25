@@ -14,10 +14,16 @@ function isStart(line, depMarkers) {
     return false;
 }
 
-export function getDepLines(lines, depMarkers, nameRegex, name, end_maybe_start_of_next = false) {
+/**
+ * @param {string[]} lines
+ * @param {RegExp[][] | null} depMarkers
+ * @param {RegExp} nameRegex
+ * @param {string} name
+ * @param {boolean} [end_maybe_start_of_next=false]
+ */
+export function getDepLine(lines, depMarkers, nameRegex, name, end_maybe_start_of_next = false) {
     let start = depMarkers === null ? true : false;
     let end = false;
-    let depLines = [];
     for (let i = 0; i < lines.length; i++) {
         if (start) {
             if (end && end !== null && end.test(lines[i])) {
@@ -34,14 +40,14 @@ export function getDepLines(lines, depMarkers, nameRegex, name, end_maybe_start_
                 vals[1] !== null &&
                 vals[1].trim() === name.trim()
             ) {
-                depLines.push(i);
+                return i;
             }
         } else if (!!isStart(lines[i], depMarkers)) {
             start = true;
             end = isStart(lines[i], depMarkers).end;
         }
     }
-    return depLines;
+    return null;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { simpleHash, initRenderConfig, getParserConfig } from './utils.js';
 import { drawOne } from './render.js';
-import { getDepLines } from './render-utils.js';
+import { getDepLine } from './render-utils.js';
 
 let initialized = false;
 const FILE_CACHE = new Map();
@@ -37,9 +37,9 @@ async function run(plugin) {
     const cb = async (depName, depValue, markers, nameRegex) => {
         if (!depValue.currentVersion || !depValue.latestVersion) return;
 
-        const lineNumbers = getDepLines(packageFileLines, markers, nameRegex, depName);
-        for (let ln of lineNumbers) {
-            await drawOne(buffer, renderConfig, ln, { currentVersion: depValue.currentVersion, latestVersion: depValue.latestVersion });
+        const lineNumber = getDepLine(packageFileLines, markers, nameRegex, depName);
+        if (lineNumber) {
+            await drawOne(buffer, renderConfig, lineNumber, { currentVersion: depValue.currentVersion, latestVersion: depValue.latestVersion });
         }
     }
 
