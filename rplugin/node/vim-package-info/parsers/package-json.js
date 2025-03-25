@@ -3,33 +3,23 @@ import path from 'node:path';
 import yarnParse  from '@yarnpkg/lockfile';
 import { parse as yamlParse } from 'yaml';
 
+import { store } from '../store.js';
+
 const LANGUAGE = 'javascript:package.json';
 const depGroups = ['dependencies', 'devDependencies'];
-export const markers = depGroups.map((prop) => [new RegExp(`["|'](${prop})["|']`), /\}/]);
-export const nameRegex = /['|"](.*)['|"] *:/;
+const markers = depGroups.map((prop) => [new RegExp(`["|'](${prop})["|']`), /\}/]);
+const nameRegex = /['|"](.*)['|"] *:/;
 
 /**
- * @typedef {import('../types.d.ts').GenericParser} GenericParser
- * @typedef {import('../store.js').Store} Store
  * @typedef {import('../store.js').StoreItem} StoreItem
  * @typedef {import('../types.d.ts').RenderCallback} RenderCallback
  */
 
 /**
- * @implements {GenericParser} - Only warns for missing methods. TS is super lacking here.
+ * @type {import('../types.d.ts').PackageFileParser}
  */
-export class PkgJsonParser {
-    /**
-     * @param {Store} store
-     */
-    constructor(store) {
-        this.store = store;
-    }
-
-    /**
-     * @type {GenericParser['getLockFile']}
-     */
-    async getLockFile(packageFilePath) {
+export const PkgJsonParser = {
+    getLockFile: async (packageFilePath) => {
         let dir = path.resolve(path.dirname(packageFilePath));
 
         do {
@@ -48,13 +38,9 @@ export class PkgJsonParser {
         } while (path.dirname(dir) !== dir);
 
         throw new Error('No lockfile found');
-    }
-
-    /**
-     * @type {GenericParser['getDepsFromPackageFile']}
-     */
-    getDepsFromPackageFile(bufferContent) {
-        const data = JSON.parse(bufferContent);
+    },
+    getDepsFromPackageFile: (packageFileContent) => {
+        const data = JSON.parse(packageFileContent);
         const depList = [];
 
         for (const depGroup of depGroups) {
@@ -70,21 +56,17 @@ export class PkgJsonParser {
                 // There's seemingly no comprehensive list out there but _I think_ this roughly covers it?
                 if (/^(https?|file|workspace|link):/.test(semverVersion)) continue;
 
-                this.store.set(LANGUAGE, dep, { semverVersion });
+                store.set(LANGUAGE, dep, { semverVersion });
                 depList.push(dep);
             }
         }
 
         return depList;
-    }
-
-    /**
-     * @type {GenericParser['getRegistryVersions']}
-     */
-    async getRegistryVersions(depList, cb) {
+    },
+    getRegistryVersions: async (depList, cb) => {
         const updatePackageVersions = async (iter) => {
             for (const dep of iter) {
-                const stored = this.store.get(LANGUAGE, dep);
+                const stored = store.get(LANGUAGE, dep);
                 if (stored && 'latestVersion' in stored && 'allVersions' in stored) continue;
 
                 const res = await fetch(`https://registry.npmjs.org/${dep}`, {
@@ -112,38 +94,34 @@ export class PkgJsonParser {
                     allVersions = Object.keys(data['versions']);
                 }
 
-                this.store.set(LANGUAGE, dep, { latestVersion, allVersions });
-                if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (this.store.get(LANGUAGE, dep)), markers, nameRegex);
+                store.set(LANGUAGE, dep, { latestVersion, allVersions });
+                if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
             }
         };
 
         await Promise.all(
             Array(5).fill(depList.values()).map(updatePackageVersions)
         );
-    }
-
-    /**
-     * @type {GenericParser['getLockFileVersions']}
-     */
-    async getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent, cb) {
+    },
+    getLockFileVersions: async (depList, packageFilePath, lockFilePath, lockFileContent, cb) => {
         const relativePackageFilePath = path.relative(path.dirname(lockFilePath), path.dirname(packageFilePath)) || '.';
 
         switch (path.basename(lockFilePath)) {
             case 'package-lock.json': {
-                return parseNPM(this.store, lockFileContent, depList, relativePackageFilePath, cb);
+                return parseNPM(store, lockFileContent, depList, relativePackageFilePath, cb);
             }
             case 'yarn.lock': {
-                return parseYarn(this.store, lockFileContent, depList, cb);
+                return parseYarn(store, lockFileContent, depList, cb);
             }
             case 'pnpm-lock.yaml': {
-                return parsePNPM(this.store, lockFileContent, depList, relativePackageFilePath, cb);
+                return parsePNPM(store, lockFileContent, depList, relativePackageFilePath, cb);
             }
         }
     }
-}
+};
 
 /**
- * @param {Store} store
+ * @param {typeof store} store
  * @param {string} lockfile
  * @param {string[]} depList
  * @param {string} relativePackageFilePath
@@ -178,7 +156,7 @@ function parseNPM(store, lockfile, depList, relativePackageFilePath, cb) {
 }
 
 /**
- * @param {Store} store
+ * @param {typeof store} store
  * @param {string} lockfile
  * @param {string[]} depList
  * @param {RenderCallback} [cb]
@@ -198,7 +176,7 @@ function parseYarn(store, lockfile, depList, cb) {
 }
 
 /**
- * @param {Store} store
+ * @param {typeof store} store
  * @param {string} lockfile
  * @param {string[]} depList
  * @param {string} relativePackageFilePath

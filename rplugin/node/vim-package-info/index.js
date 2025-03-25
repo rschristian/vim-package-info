@@ -1,30 +1,6 @@
 import { simpleHash, initRenderConfig, getParserConfig } from './utils.js';
-import { Store } from './store.js';
-
 import { drawOne } from './render.js';
 import { getDepLines } from './render-utils.js';
-
-import * as pkgJson from './parsers/package-json.js';
-
-const store = new Store();
-
-const parsersConfig = {
-    'javascript:package.json': {
-        parser: new pkgJson.PkgJsonParser(store),
-    },
-    //'python:pipfile': {
-    //    parser: pipfile.Parser,
-    //},
-    //'python:pyproject.toml': {
-    //    parser: pyprojectToml.Parser,
-    //},
-    //'python:requirements.txt': {
-    //    parser: requirementsTxt.Parser,
-    //},
-    //'rust:cargo.toml': {
-    //    parser: cargoToml.Parser,
-    //},
-};
 
 let initialized = false;
 const FILE_CACHE = new Map();
@@ -68,7 +44,6 @@ async function run(plugin) {
     }
 
     const parser = getParserConfig(packageFilePath);
-    //const parser = parsersConfig['javascript:package.json'].parser;
 
     const { lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath);
 

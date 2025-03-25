@@ -1,85 +1,91 @@
-import fs from 'node:fs';
+import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import toml from 'toml';
 
+import { store } from '../store.js';
+
 const LANGUAGE = 'python:pipfile';
 const depGroups = ['packages', 'dev-packages'];
-export const markers = [
+const lockfileDepGroups = ['default', 'develop'];
+const markers = [
     [/\[(packages)\]/, /^ *\[.*\].*/],
     [/\[(dev-packages)\]/, /^ *\[.*\].*/],
 ];
-export const nameRegex = /"?([a-zA-Z0-9\-_]*)"? *=.*/;
+const nameRegex = /"?([a-zA-Z0-9\-_]*)"? *=.*/;
 
-export class Parser {
-    /**
-     * @param {import('../store.js').Store} store
-     */
-    constructor(store) {
-        this.store = store;
-    }
+/**
+ * @typedef {import('../store.js').StoreItem} StoreItem
+ */
 
-    /**
-     * @param {string} bufferContent
-     * @return {string[]}
-     */
-    getDeps(bufferContent) {
-        const data = toml.parse(bufferContent);
+/**
+ * @type {import('../types.d.ts').PackageFileParser}
+ */
+export const PipfileParser = {
+    getLockFile: async (packageFilePath) => {
+        const dir = path.resolve(path.dirname(packageFilePath));
+        const lockFilePath = path.join(dir, 'Pipfile.lock');
+        const lockFileContent = await fs.readFile(lockFilePath, 'utf-8');
+
+        return { lockFilePath, lockFileContent };
+    },
+    getDepsFromPackageFile: (packageFileContent) => {
+        const data = toml.parse(packageFileContent);
         const depList = [];
 
-        for (let dg of depGroups) {
-            if (dg in data)
-                for (let dep in data[dg]) {
-                    this.store.set(LANGUAGE, dep, { semverVersion: data[dg][dep] });
-                    depList.push(dep);
-                }
+        for (const depGroup of depGroups) {
+            if (!(depGroup in data)) continue;
+
+            for (const dep in data[depGroup]) {
+                const semverVersion = data[depGroup][dep]?.version || data[depGroup][dep];
+                store.set(LANGUAGE, dep, { semverVersion });
+                depList.push(dep);
+            }
         }
 
         return depList;
-    }
+    },
+    getRegistryVersions: async (depList, cb) => {
+        const updatePackageVersions = async (iter) => {
+            for (const dep of iter) {
+                const stored = store.get(LANGUAGE, dep);
+                if (stored && 'latestVersion' in stored && 'allVersions' in stored) continue;
 
-    /**
-     * @param {string[]} depList
-     */
-    async updatePackageVersions(depList) {
-        for (let dep of depList) {
-            if ('latest' in this.store.get(LANGUAGE, dep)) return;
-
-            const res = await fetch(`https://pypi.org/pypi/${dep}/json`, {
-                headers: {
-                    'User-Agent': 'vim-package-info (github.com/rschristian/vim-package-info)',
-                }
-            });
-
-            // TODO: Figure out proper error handling for rplugins
-            if (!res.ok) return;
-            const data = await res.json();
-
-            const latest = data.info.version;
-            const versions = Object.keys(data['releases']);
-            this.store.set(LANGUAGE, dep, { latest, versions });
-        }
-    }
-
-    /**
-     * @param {string[]} depList
-     * @param {string} filePath
-     */
-    updateCurrentVersions(depList, filePath) {
-        const dir = path.dirname(filePath);
-        const lock_filename = path.join(dir, 'Pipfile.lock');
-
-        if (fs.existsSync(lock_filename)) {
-            const lockfile_content = JSON.parse(fs.readFileSync(lock_filename, 'utf-8'));
-            for (let dep of depList) {
-                for (let dg of ['default', 'develop']) {
-                    if (dg in lockfile_content && dep in lockfile_content[dg]) {
-                        this.store.set(LANGUAGE, dep, {
-                            currentVersion: lockfile_content[dg][dep]['version'] || null, // TODO:  contains == in the beginning, thing about it
-                        });
-                        break;
+                const res = await fetch(`https://pypi.org/pypi/${dep}/json`, {
+                    headers: {
+                        'User-Agent': 'vim-package-info (github.com/rschristian/vim-package-info)',
                     }
-                }
+                });
+
+                // TODO: Figure out proper error handling for rplugins
+                if (!res.ok) return;
+                const data = await res.json();
+
+                const latestVersion = data.info.version;
+                const allVersions = Object.keys(data['releases']);
+
+                store.set(LANGUAGE, dep, { latestVersion, allVersions });
+                if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
+            }
+        };
+
+        await Promise.all(
+            Array(5).fill(depList.values()).map(updatePackageVersions)
+        );
+    },
+    getLockFileVersions: async (depList, packageFilePath, lockFilePath, lockFileContent, cb) => {
+        const parsedLockfile = JSON.parse(lockFileContent);
+
+        const deps = lockfileDepGroups.reduce((acc, key) => {
+            return { ...acc, ...parsedLockfile[key] };
+        }, {});
+
+        for (const dep of depList) {
+            if (dep in deps) {
+                // Following comment was in the original code, not sure what to do about it myself:
+                const currentVersion = deps[dep]['version'] || null; // TODO: contains == in the beginning, think about it
+                store.set(LANGUAGE, dep, { currentVersion });
+                if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
             }
         }
     }
-}
+};

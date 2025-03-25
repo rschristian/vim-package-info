@@ -1,23 +1,24 @@
+import { store } from '../store.js';
+
 const LANGUAGE = 'python:requirements.txt';
-export const markers = null;
-export const nameRegex = /^ *([a-zA-Z_]+[a-zA-Z0-9\-_]*).*/;
+const markers = null;
+const nameRegex = /^ *([a-zA-Z_]+[a-zA-Z0-9\-_]*).*/;
 
-export class Parser {
-    /**
-     * @param {import('../store.js').Store} store
-     */
-    constructor(store) {
-        this.store = store;
-    }
+/**
+ * @typedef {import('../store.js').StoreItem} StoreItem
+ */
 
-    /**
-     * @param {string} bufferContent
-     * @return {string[]}
-     */
-    getDeps(bufferContent) {
+/**
+ * @type {import('../types.d.ts').PackageFileParser}
+ */
+export const RequirementsTxtParser = {
+    getLockFile: async (packageFilePath) => {
+        return { lockFilePath: null, lockFileContent: null };
+    },
+    getDepsFromPackageFile: (packageFileContent) => {
         const depList = [];
 
-        for (let line of bufferContent.split('\n')) {
+        for (let line of packageFileContent.split('\n')) {
             const vals = line.match(nameRegex);
             if (vals !== null && vals !== undefined && 1 in vals) {
                 const dep = vals[1].trim();
@@ -31,7 +32,7 @@ export class Parser {
                     }
                 }
 
-                this.store.set(LANGUAGE, dep, {
+                store.set(LANGUAGE, dep, {
                     semverVersion,
                     currentVersion: semverVersion,
                 });
@@ -40,37 +41,37 @@ export class Parser {
         }
 
         return depList;
+    },
+    getRegistryVersions: async (depList, cb) => {
+        const updatePackageVersions = async (iter) => {
+            for (const dep of iter) {
+                const stored = store.get(LANGUAGE, dep);
+                if (stored && 'latestVersion' in stored && 'allVersions' in stored) continue;
+
+                const res = await fetch(`https://pypi.org/pypi/${dep}/json`, {
+                    headers: {
+                        'User-Agent': 'vim-package-info (github.com/rschristian/vim-package-info)',
+                    }
+                });
+
+                // TODO: Figure out proper error handling for rplugins
+                if (!res.ok) return;
+                const data = await res.json();
+
+                const latestVersion = data.info.version;
+                const allVersions = Object.keys(data['releases']);
+
+                store.set(LANGUAGE, dep, { latestVersion, allVersions });
+                if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
+            }
+        };
+
+        await Promise.all(
+            Array(5).fill(depList.values()).map(updatePackageVersions)
+        );
+    },
+    getLockFileVersions: async (depList, packageFilePath, lockFilePath, lockFileContent, cb) => {
+        // There's no specific lockfile so currentVersion is the same as semverVersion and
+        // set in getDepsFromPackageFile to skip an extra iteration
     }
-
-    /**
-     * @param {string[]} depList
-     */
-    async updatePackageVersions(depList) {
-        for (let dep of depList) {
-            if ('latest' in this.store.get(LANGUAGE, dep)) return;
-
-            const res = await fetch(`https://pypi.org/pypi/${dep}/json`, {
-                headers: {
-                    'User-Agent': 'vim-package-info (github.com/rschristian/vim-package-info)',
-                }
-            });
-
-            // TODO: Figure out proper error handling for rplugins
-            if (!res.ok) return;
-            const data = await res.json();
-
-            const latest = data.info.version;
-            const versions = Object.keys(data['releases']);
-            this.store.set(LANGUAGE, dep, { latest, versions });
-        }
-    }
-
-    /**
-     * @param {string[]} depList
-     * @param {string} filePath
-     */
-    updateCurrentVersions(depList, filePath) {
-        // no specific lockfile, copy semver_version to current_version
-        // taken care in getDeps
-    }
-}
+};

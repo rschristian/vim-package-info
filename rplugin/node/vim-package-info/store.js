@@ -3,23 +3,20 @@
  * @typedef {import('./types.d.ts').StoreItem} StoreItem
  */
 
-// A super minimal store implementation with callback on insert event
-export class Store {
-    /** @type {Record<ParserKey, Record<string, any>>} */
-    store = {
-        'javascript:package.json': {},
-        'python:pipfile': {},
-        'python:pyproject.toml': {},
-        'python:requirements.txt': {},
-        'rust:cargo.toml': {},
-    };
+const emptyStore = {
+    'javascript:package.json': {},
+    'python:pipfile': {},
+    'python:pyproject.toml': {},
+    'python:requirements.txt': {},
+    'rust:cargo.toml': {},
+};
 
-    /**
-     * @param {(lang: ParserKey, dep: string, value: Record<string, any>) => void} [callbackFn]
-     */
-    constructor(callbackFn) {
-        this.callback = callbackFn;
-    }
+const emptyStoreCopy = () => JSON.parse(JSON.stringify(emptyStore));
+
+// A super minimal store implementation
+class Store {
+    /** @type {Record<ParserKey, Record<string, any>>} */
+    store = emptyStoreCopy();
 
     /**
      * @param {ParserKey} lang
@@ -37,15 +34,15 @@ export class Store {
      * @return {void}
      */
     set(lang, dep, value) {
-        if (this.store[lang][dep] === undefined) {
-            this.store[lang][dep] = {};
-        }
-
         this.store[lang][dep] = {
             ...this.store[lang][dep],
             ...value,
         };
+    }
 
-        //this.callback(lang, dep, this.store[lang][dep]);
+    reset() {
+        this.store = emptyStoreCopy();
     }
 }
+
+export const store = new Store();

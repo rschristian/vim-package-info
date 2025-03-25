@@ -1,10 +1,16 @@
 import { test } from 'uvu';
 import * as assert from 'uvu/assert';
 
-import { setup } from './lib/lifecycle.js';
+import { setupTest, teardownTest } from '../lib/lifecycle.js';
+
+import { store } from '../../rplugin/node/vim-package-info/store.js';
+
+test.after.each(() => {
+    teardownTest();
+});
 
 test('Should return all deps from package file', async () => {
-    const { store, parser, packageFileContent } = await setup('javascript/npm');
+    const { parser, packageFileContent } = await setupTest('javascript/npm');
 
     const depList = parser.getDepsFromPackageFile(packageFileContent);
 
@@ -36,7 +42,7 @@ test('Should return all deps from package file', async () => {
 });
 
 test('Should return latest & all versions for all deps from package file', async () => {
-    const { store, parser, packageFileContent } = await setup('javascript/npm');
+    const { parser, packageFileContent } = await setupTest('javascript/npm');
 
     const depList = parser.getDepsFromPackageFile(packageFileContent);
     await parser.getRegistryVersions(depList);
@@ -50,7 +56,7 @@ test('Should return latest & all versions for all deps from package file', async
 });
 
 test('Should return current versions from package-lock.json', async () => {
-    const { store, parser, packageFilePath, packageFileContent } = await setup('javascript/npm');
+    const { parser, packageFilePath, packageFileContent } = await setupTest('javascript/npm');
 
     const depList = parser.getDepsFromPackageFile(packageFileContent);
     const { lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath);
@@ -71,7 +77,7 @@ test('Should return current versions from package-lock.json', async () => {
 });
 
 test('Should return current versions from yarn.lock', async () => {
-    const { store, parser, packageFilePath, packageFileContent } = await setup('javascript/yarn');
+    const { parser, packageFilePath, packageFileContent } = await setupTest('javascript/yarn');
 
     const depList = parser.getDepsFromPackageFile(packageFileContent);
     const { lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath);
@@ -92,7 +98,7 @@ test('Should return current versions from yarn.lock', async () => {
 });
 
 test('Should return current versions from pnpm-lock.yaml', async () => {
-    const { store, parser, packageFilePath, packageFileContent } = await setup('javascript/pnpm');
+    const { parser, packageFilePath, packageFileContent } = await setupTest('javascript/pnpm');
 
     const depList = parser.getDepsFromPackageFile(packageFileContent);
     const { lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath);
@@ -113,7 +119,7 @@ test('Should return current versions from pnpm-lock.yaml', async () => {
 });
 
 test('Should return current versions from monorepo package-lock.json', async () => {
-    let { store, parser, packageFilePath, packageFileContent } = await setup('javascript/npm-workspace');
+    let { parser, packageFilePath, packageFileContent } = await setupTest('javascript/npm-workspace');
 
     let depList = parser.getDepsFromPackageFile(packageFileContent);
     let { lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath);
@@ -125,13 +131,19 @@ test('Should return current versions from monorepo package-lock.json', async () 
         'prettier-config-rschristian':      { semverVersion: '^0.1.2',    currentVersion: '0.1.2' }
     });
 
-    ({ store, parser, packageFilePath, packageFileContent } = await setup('javascript/npm-workspace/packages/package-a'));
+    // TODO: Behavior here is correct & mirrors real-world usage, wherein loading the root package.json & then subpackage
+    // package.json should result in the store containing deps of both, but it doesn't make for the most clear test case.
+    ({ parser, packageFilePath, packageFileContent } = await setupTest('javascript/npm-workspace/packages/package-a'));
 
     depList = parser.getDepsFromPackageFile(packageFileContent);
     ({ lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath));
     await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent);
 
     assert.equal(store.store['javascript:package.json'], {
+        '@types/node':                      { semverVersion: '^22.13.10', currentVersion: '22.13.11' },
+        'prettier':                         { semverVersion: '^2.8.7',    currentVersion: '2.8.8' },
+        'prettier-config-rschristian':      { semverVersion: '^0.1.2',    currentVersion: '0.1.2' },
+
         '@preact/preset-vite':              { semverVersion: '^2.10.1',   currentVersion: '2.10.1' },
         '@rollup/plugin-replace':           { semverVersion: '^5.0.2',    currentVersion: '5.0.7' },
         'html-minifier-terser':             { semverVersion: '^7.2.0',    currentVersion: '7.2.0' },
@@ -143,13 +155,27 @@ test('Should return current versions from monorepo package-lock.json', async () 
         'preact-render-to-string':          { semverVersion: '^6.5.13',   currentVersion: '6.5.13' }
     });
 
-    ({ store, parser, packageFilePath, packageFileContent } = await setup('javascript/npm-workspace/packages/package-b'));
+    ({ parser, packageFilePath, packageFileContent } = await setupTest('javascript/npm-workspace/packages/package-b'));
 
     depList = parser.getDepsFromPackageFile(packageFileContent);
     ({ lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath));
     await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent);
 
     assert.equal(store.store['javascript:package.json'], {
+        '@types/node':                      { semverVersion: '^22.13.10', currentVersion: '22.13.11' },
+        'prettier':                         { semverVersion: '^2.8.7',    currentVersion: '2.8.8' },
+        'prettier-config-rschristian':      { semverVersion: '^0.1.2',    currentVersion: '0.1.2' },
+
+        '@preact/preset-vite':              { semverVersion: '^2.10.1',   currentVersion: '2.10.1' },
+        '@rollup/plugin-replace':           { semverVersion: '^5.0.2',    currentVersion: '5.0.7' },
+        'html-minifier-terser':             { semverVersion: '^7.2.0',    currentVersion: '7.2.0' },
+        'kolorist':                         { semverVersion: '^1.8.0',    currentVersion: '1.8.0' },
+        'magic-string':                     { semverVersion: '^0.30.17',  currentVersion: '0.30.17' },
+        'node-html-parser':                 { semverVersion: '^6.1.13',   currentVersion: '6.1.13' },
+        'preact':                           { semverVersion: '^10.26.4',  currentVersion: '10.26.4' },
+        'preact-iso':                       { semverVersion: '^2.9.1',    currentVersion: '2.9.1' },
+        'preact-render-to-string':          { semverVersion: '^6.5.13',   currentVersion: '6.5.13' },
+
         'sade':                             { semverVersion: '^1.8.1',    currentVersion: '1.8.1' },
         'simple-code-frame':                { semverVersion: '^1.3.0',    currentVersion: '1.3.0' },
         'source-map':                       { semverVersion: '^0.7.4',    currentVersion: '0.7.4' },
@@ -163,7 +189,7 @@ test('Should return current versions from monorepo package-lock.json', async () 
 });
 
 test('Should return current versions from monorepo yarn.lock', async () => {
-    let { store, parser, packageFilePath, packageFileContent } = await setup('javascript/yarn-workspace');
+    let { parser, packageFilePath, packageFileContent } = await setupTest('javascript/yarn-workspace');
 
     let depList = parser.getDepsFromPackageFile(packageFileContent);
     let { lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath);
@@ -175,13 +201,19 @@ test('Should return current versions from monorepo yarn.lock', async () => {
         'prettier-config-rschristian':      { semverVersion: '^0.1.2',    currentVersion: '0.1.2' }
     });
 
-    ({ store, parser, packageFilePath, packageFileContent } = await setup('javascript/yarn-workspace/packages/package-a'));
+    // TODO: Behavior here is correct & mirrors real-world usage, wherein loading the root package.json & then subpackage
+    // package.json should result in the store containing deps of both, but it doesn't make for the most clear test case.
+    ({ parser, packageFilePath, packageFileContent } = await setupTest('javascript/yarn-workspace/packages/package-a'));
 
     depList = parser.getDepsFromPackageFile(packageFileContent);
     ({ lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath));
     await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent);
 
     assert.equal(store.store['javascript:package.json'], {
+        '@types/node':                      { semverVersion: '^22.13.10', currentVersion: '22.13.11' },
+        'prettier':                         { semverVersion: '^2.8.7',    currentVersion: '2.8.8' },
+        'prettier-config-rschristian':      { semverVersion: '^0.1.2',    currentVersion: '0.1.2' },
+
         '@preact/preset-vite':              { semverVersion: '^2.10.1',   currentVersion: '2.10.1' },
         '@rollup/plugin-replace':           { semverVersion: '^5.0.2',    currentVersion: '5.0.7' },
         'html-minifier-terser':             { semverVersion: '^7.2.0',    currentVersion: '7.2.0' },
@@ -193,13 +225,27 @@ test('Should return current versions from monorepo yarn.lock', async () => {
         'preact-render-to-string':          { semverVersion: '^6.5.13',   currentVersion: '6.5.13' }
     });
 
-    ({ store, parser, packageFilePath, packageFileContent } = await setup('javascript/yarn-workspace/packages/package-b'));
+    ({ parser, packageFilePath, packageFileContent } = await setupTest('javascript/yarn-workspace/packages/package-b'));
 
     depList = parser.getDepsFromPackageFile(packageFileContent);
     ({ lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath));
     await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent);
 
     assert.equal(store.store['javascript:package.json'], {
+        '@types/node':                      { semverVersion: '^22.13.10', currentVersion: '22.13.11' },
+        'prettier':                         { semverVersion: '^2.8.7',    currentVersion: '2.8.8' },
+        'prettier-config-rschristian':      { semverVersion: '^0.1.2',    currentVersion: '0.1.2' },
+
+        '@preact/preset-vite':              { semverVersion: '^2.10.1',   currentVersion: '2.10.1' },
+        '@rollup/plugin-replace':           { semverVersion: '^5.0.2',    currentVersion: '5.0.7' },
+        'html-minifier-terser':             { semverVersion: '^7.2.0',    currentVersion: '7.2.0' },
+        'kolorist':                         { semverVersion: '^1.8.0',    currentVersion: '1.8.0' },
+        'magic-string':                     { semverVersion: '^0.30.17',  currentVersion: '0.30.17' },
+        'node-html-parser':                 { semverVersion: '^6.1.13',   currentVersion: '6.1.13' },
+        'preact':                           { semverVersion: '^10.26.4',  currentVersion: '10.26.4' },
+        'preact-iso':                       { semverVersion: '^2.9.1',    currentVersion: '2.9.1' },
+        'preact-render-to-string':          { semverVersion: '^6.5.13',   currentVersion: '6.5.13' },
+
         'sade':                             { semverVersion: '^1.8.1',    currentVersion: '1.8.1' },
         'simple-code-frame':                { semverVersion: '^1.3.0',    currentVersion: '1.3.0' },
         'source-map':                       { semverVersion: '^0.7.4',    currentVersion: '0.7.4' },
@@ -213,7 +259,7 @@ test('Should return current versions from monorepo yarn.lock', async () => {
 });
 
 test('Should return current versions from monorepo pnpm-lock.yaml', async () => {
-    let { store, parser, packageFilePath, packageFileContent } = await setup('javascript/pnpm-workspace');
+    let { parser, packageFilePath, packageFileContent } = await setupTest('javascript/pnpm-workspace');
 
     let depList = parser.getDepsFromPackageFile(packageFileContent);
     let { lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath);
@@ -225,13 +271,19 @@ test('Should return current versions from monorepo pnpm-lock.yaml', async () => 
         'prettier-config-rschristian':      { semverVersion: '^0.1.2',    currentVersion: '0.1.2' }
     });
 
-    ({ store, parser, packageFilePath, packageFileContent } = await setup('javascript/pnpm-workspace/packages/package-a'));
+    // TODO: Behavior here is correct & mirrors real-world usage, wherein loading the root package.json & then subpackage
+    // package.json should result in the store containing deps of both, but it doesn't make for the most clear test case.
+    ({ parser, packageFilePath, packageFileContent } = await setupTest('javascript/pnpm-workspace/packages/package-a'));
 
     depList = parser.getDepsFromPackageFile(packageFileContent);
     ({ lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath));
     await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent);
 
     assert.equal(store.store['javascript:package.json'], {
+        '@types/node':                      { semverVersion: '^22.13.10', currentVersion: '22.13.11' },
+        'prettier':                         { semverVersion: '^2.8.7',    currentVersion: '2.8.8' },
+        'prettier-config-rschristian':      { semverVersion: '^0.1.2',    currentVersion: '0.1.2' },
+
         '@preact/preset-vite':              { semverVersion: '^2.10.1',   currentVersion: '2.10.1' },
         '@rollup/plugin-replace':           { semverVersion: '^5.0.2',    currentVersion: '5.0.7' },
         'html-minifier-terser':             { semverVersion: '^7.2.0',    currentVersion: '7.2.0' },
@@ -243,13 +295,27 @@ test('Should return current versions from monorepo pnpm-lock.yaml', async () => 
         'preact-render-to-string':          { semverVersion: '^6.5.13',   currentVersion: '6.5.13' }
     });
 
-    ({ store, parser, packageFilePath, packageFileContent } = await setup('javascript/pnpm-workspace/packages/package-b'));
+    ({ parser, packageFilePath, packageFileContent } = await setupTest('javascript/pnpm-workspace/packages/package-b'));
 
     depList = parser.getDepsFromPackageFile(packageFileContent);
     ({ lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath));
     await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent);
 
     assert.equal(store.store['javascript:package.json'], {
+        '@types/node':                      { semverVersion: '^22.13.10', currentVersion: '22.13.11' },
+        'prettier':                         { semverVersion: '^2.8.7',    currentVersion: '2.8.8' },
+        'prettier-config-rschristian':      { semverVersion: '^0.1.2',    currentVersion: '0.1.2' },
+
+        '@preact/preset-vite':              { semverVersion: '^2.10.1',   currentVersion: '2.10.1' },
+        '@rollup/plugin-replace':           { semverVersion: '^5.0.2',    currentVersion: '5.0.7' },
+        'html-minifier-terser':             { semverVersion: '^7.2.0',    currentVersion: '7.2.0' },
+        'kolorist':                         { semverVersion: '^1.8.0',    currentVersion: '1.8.0' },
+        'magic-string':                     { semverVersion: '^0.30.17',  currentVersion: '0.30.17' },
+        'node-html-parser':                 { semverVersion: '^6.1.13',   currentVersion: '6.1.13' },
+        'preact':                           { semverVersion: '^10.26.4',  currentVersion: '10.26.4' },
+        'preact-iso':                       { semverVersion: '^2.9.1',    currentVersion: '2.9.1' },
+        'preact-render-to-string':          { semverVersion: '^6.5.13',   currentVersion: '6.5.13' },
+
         'sade':                             { semverVersion: '^1.8.1',    currentVersion: '1.8.1' },
         'simple-code-frame':                { semverVersion: '^1.3.0',    currentVersion: '1.3.0' },
         'source-map':                       { semverVersion: '^0.7.4',    currentVersion: '0.7.4' },
