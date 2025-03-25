@@ -11,12 +11,12 @@ const emptyStore = {
     'rust:cargo.toml': {},
 };
 
-const emptyStoreCopy = () => JSON.parse(JSON.stringify(emptyStore));
+const stringifiedEmptyStore = JSON.stringify(emptyStore);
 
 // A super minimal store implementation
 class Store {
     /** @type {Record<ParserKey, Record<string, any>>} */
-    store = emptyStoreCopy();
+    store = JSON.parse(stringifiedEmptyStore);
 
     /**
      * @param {ParserKey} lang
@@ -41,7 +41,7 @@ class Store {
     }
 
     reset() {
-        this.store = emptyStoreCopy();
+        this.store = JSON.parse(stringifiedEmptyStore);
     }
 }
 

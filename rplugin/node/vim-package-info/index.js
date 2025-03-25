@@ -55,6 +55,7 @@ async function run(plugin) {
         FILE_CACHE.get(lockFilePath) === lockfileHash
     ) return;
 
+    // TODO: Branches below this point need a bit more thought, still not 100% sure on them
     if (FILE_CACHE.get(packageFilePath) !== bufferHash) {
         depList = parser.getDepsFromPackageFile(packageFileContent);
         await parser.getRegistryVersions(depList, cb);
@@ -66,28 +67,6 @@ async function run(plugin) {
 
     FILE_CACHE.set(packageFilePath, bufferHash);
     FILE_CACHE.set(lockFilePath, lockfileHash);
-
-
-    //const deps = Object.keys(depMap);
-    //const depVersions = Object.values(depMap);
-
-    //// If buffer has changed, but dependencies have not, bail out of any further processing
-    //const depHash = simpleHash(deps.join(','));
-    //const depVersionsHash = simpleHash(depVersions.join(','));
-    //if (DEP_CACHE.get(bufferPath + 'deps') === depHash && DEP_CACHE.get(bufferPath + 'versions') === depVersionsHash) {
-    //    //BUFFER_CACHE.set(bufferPath, bufferHash);
-    //    return;
-    //};
-
-    //// only run if deps themselves have changed -- if only dep versions have changed
-    //// no point in fetching data again
-    //if (DEP_CACHE.get(bufferPath + 'deps') !== depHash) {
-    //    parser.updatePackageVersions(Object.keys(depMap), cb);
-    //}
-
-    //BUFFER_CACHE.set(bufferPath, bufferHash);
-    //DEP_CACHE.set(bufferPath + 'deps', depHash);
-    //DEP_CACHE.set(bufferPath + 'versions', depVersionsHash);
 }
 
 /**
