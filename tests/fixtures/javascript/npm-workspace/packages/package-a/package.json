@@ -1,0 +1,17 @@
+{
+  "private": true,
+  "name": "package-a",
+  "dependencies": {
+    "@preact/preset-vite": "^2.10.1",
+    "@rollup/plugin-replace": "^5.0.2",
+    "html-minifier-terser": "^7.2.0",
+    "kolorist": "^1.8.0",
+    "magic-string": "^0.30.17",
+    "node-html-parser": "^6.1.13"
+  },
+  "devDependencies": {
+    "preact": "^10.26.4",
+    "preact-iso": "^2.9.1",
+    "preact-render-to-string": "^6.5.13"
+  }
+}

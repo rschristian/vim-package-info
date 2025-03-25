@@ -1,14 +1,23 @@
-import { getConfigValues } from './utils.js';
 import { format } from './render-utils.js';
 
-export async function clearAll(handle) {
-    await handle.nvim.buffer.clearNamespace({ nsId: 1 });
+/**
+ * @param {import('neovim').Buffer} buffer
+ * @param {number} virtualTextNamespace
+ * @return {Promise<void>}
+ */
+export async function clearAll(buffer, virtualTextNamespace) {
+    await buffer.clearNamespace({ nsId: virtualTextNamespace });
+
 }
 
-export async function drawOne(handle, lineNum, current, latest) {
-    const { prefix, hl_group } = await getConfigValues(handle);
-    const lp = format(current, prefix, hl_group, latest);
-
-    const buffer = await handle.nvim.buffer;
-    await buffer.setVirtualText(1, lineNum, lp);
+/**
+ * @param {import('neovim').Buffer} buffer
+ * @param {import('./types.d.ts').RenderConfig} renderConfig
+ * @param {number} lineNum
+ * @param {import('./types.d.ts').RenderDiff} depValue
+ * @return {Promise<void>}
+ */
+export async function drawOne(buffer, renderConfig, lineNum, depValue) {
+    const lp = format(renderConfig, depValue.currentVersion, depValue.latestVersion);
+    await buffer.setVirtualText(renderConfig.virtualTextNamespace, lineNum, lp);
 }

@@ -4,21 +4,20 @@
   "author": "Abin Simon <abinsimon10@gmail.com> (meain.io)",
   "license": "Apache-2.0",
   "scripts": {
-    "test": "mocha",
+    "test": "uvu tests '.test.js'",
     "format": "prettier --write --ignore-path .gitignore ."
   },
   "dependencies": {
     "@yarnpkg/lockfile": "^1.1.0",
-    "follow-redirects": "^1.7.0",
     "toml": "^3.0.0",
     "yaml": "^2.4.2"
   },
   "devDependencies": {
     "@types/node": "^22.13.9",
-    "mocha": "^6.1.4",
     "neovim": "^5.3.0",
     "prettier": "^2.8.8",
-    "prettier-config-rschristian": "^0.1.1"
+    "prettier-config-rschristian": "^0.1.2",
+    "uvu": "^0.5.6"
   },
   "prettier": "prettier-config-rschristian"
 }

@@ -44,12 +44,17 @@ export function getDepLines(lines, depMarkers, nameRegex, name, end_maybe_start_
     return depLines;
 }
 
-export function format(current, prefix, hl, latest) {
+/**
+ * @param {import('./types.d.ts').RenderConfig} renderConfig
+ * @param {string} currentVersion
+ * @param {string} latestVersion
+ */
+export function format(renderConfig, currentVersion, latestVersion) {
     // let lpf = [[`${prefix}No info available`, hl]];
-    let lpf = [['', hl]];
-    const cd = colorizeDiff(current, latest, hl);
+    let lpf = [['', renderConfig.virtualTextHlGroup]];
+    const cd = colorizeDiff(currentVersion, latestVersion, renderConfig.virtualTextHlGroup);
 
-    lpf = [[`${prefix} `, hl], ...cd];
+    lpf = [[`${renderConfig.virtualTextPrefix} `, renderConfig.virtualTextHlGroup], ...cd];
 
     return lpf;
 }

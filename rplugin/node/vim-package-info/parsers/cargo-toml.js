@@ -4,14 +4,10 @@ import toml from 'toml';
 
 import { store } from '../store.js';
 
-const LANGUAGE = 'python:pipfile';
-const depGroups = ['packages', 'dev-packages'];
-const lockfileDepGroups = ['default', 'develop'];
-const markers = [
-    [/\[(packages)\]/, /^ *\[.*\].*/],
-    [/\[(dev-packages)\]/, /^ *\[.*\].*/],
-];
-const nameRegex = /"?([a-zA-Z0-9\-_]*)"? *=.*/;
+const LANGUAGE = 'rust:cargo.toml';
+const depGroups = ['dependencies', 'build-dependencies', 'dev-dependencies'];
+const markers = [[/\[(.*dependencies)\]/, /^ *\[.*\].*/]];
+const nameRegex = /([a-zA-Z0-9\-_]*) *=.*/;
 
 /**
  * @typedef {import('../store.js').StoreItem} StoreItem
@@ -20,10 +16,10 @@ const nameRegex = /"?([a-zA-Z0-9\-_]*)"? *=.*/;
 /**
  * @type {import('../types.d.ts').PackageFileParser}
  */
-export const PipfileParser = {
+export const CargoTomlParser = {
     getLockFile: async (packageFilePath) => {
         const dir = path.resolve(path.dirname(packageFilePath));
-        const lockFilePath = path.join(dir, 'Pipfile.lock');
+        const lockFilePath = path.join(dir, 'Cargo.lock');
         const lockFileContent = await fs.readFile(lockFilePath, 'utf-8');
 
         return { lockFilePath, lockFileContent };
@@ -50,7 +46,7 @@ export const PipfileParser = {
                 const stored = store.get(LANGUAGE, dep);
                 if (stored && 'latestVersion' in stored && 'allVersions' in stored) continue;
 
-                const res = await fetch(`https://pypi.org/pypi/${dep}/json`, {
+                const res = await fetch(`https://crates.io/api/v1/crates/${dep}`, {
                     headers: {
                         'User-Agent': 'vim-package-info (github.com/rschristian/vim-package-info)',
                     }
@@ -60,8 +56,8 @@ export const PipfileParser = {
                 if (!res.ok) return;
                 const data = await res.json();
 
-                const latestVersion = data.info.version;
-                const allVersions = Object.keys(data['releases']);
+                const latestVersion = data['crate'].max_version;
+                const allVersions = data['versions'].map((v) => v.num);
 
                 store.set(LANGUAGE, dep, { latestVersion, allVersions });
                 if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
@@ -73,19 +69,15 @@ export const PipfileParser = {
         );
     },
     getLockFileVersions: async (depList, packageFilePath, lockFilePath, lockFileContent, cb) => {
-        const parsedLockfile = JSON.parse(lockFileContent);
-
-        const deps = lockfileDepGroups.reduce((acc, key) => {
-            return { ...acc, ...parsedLockfile[key] };
-        }, {});
+        const parsedLockfile = toml.parse(lockFileContent);
 
         for (const dep of depList) {
-            if (dep in deps) {
-                // Following comment was in the original code, not sure what to do about it myself:
-                const currentVersion = deps[dep]['version'] || null; // TODO: contains == in the beginning, think about it
-                store.set(LANGUAGE, dep, { currentVersion });
-                if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
-            }
+            const pack = parsedLockfile['package'].find((p) => p.name === dep);
+
+            store.set(LANGUAGE, dep, {
+                currentVersion: pack.version || null,
+            });
+            if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
         }
     }
 };

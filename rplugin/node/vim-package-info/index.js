@@ -1,60 +1,72 @@
-import { determineFileKind } from './utils.js';
-import { Store } from './more.js';
-import { clearAll } from './render.js';
+import { simpleHash, initRenderConfig, getParserConfig } from './utils.js';
+import { drawOne } from './render.js';
+import { getDepLines } from './render-utils.js';
 
-import { PackageJson } from './parsers/package-json.js';
-import { CargoParser } from './parsers/cargo.js';
-import { RequirementsTxt } from './parsers/requirements-txt.js';
-import { PipfileParser } from './parsers/pipfile.js';
-import { PyprojectToml } from './parsers/pyproject-toml.js';
+let initialized = false;
+const FILE_CACHE = new Map();
 
-let globalHandle = null;
-function callRenderer(confType, dep) {
-    const parser = getPackageParser(confType);
-    if (globalHandle) parser.render(globalHandle, dep);
-}
+/** @type {string[]} */
+let depList = [];
 
-// I think each excecution starts fresh but with same interpretter
-if (!('store' in global)) {
-    global.store = new Store({}, callRenderer);
-    global.bufferHash = null; // use timestamp for now
-}
-
-// do not move to utils, will create cyclic dependency
-function getPackageParser(confType) {
-    switch (confType) {
-        case 'rust':
-            return new CargoParser();
-        case 'javascript':
-            return new PackageJson();
-        case 'python:requirements':
-            return new RequirementsTxt();
-        case 'python:pipfile':
-            return new PipfileParser();
-        case 'python:pyproject':
-            return new PyprojectToml();
-    }
-}
+let renderConfig = {
+    virtualTextNamespace: 0,
+    virtualTextPrefix: '',
+    virtualTextHlGroup: '',
+};
 
 /**
  * @param {import('neovim').NvimPlugin} plugin
  */
 async function run(plugin) {
-    globalHandle = plugin;
-    global.bufferHash = +new Date();
-    await clearAll(plugin);
+    if (!initialized) {
+        const [config, virtualTextNamespace] = await Promise.all([
+            initRenderConfig(plugin),
+            plugin.nvim.createNamespace('vim-package-info')
+        ]);
+        renderConfig = { ...config, virtualTextNamespace };
+
+        initialized = true;
+    }
 
     const buffer = await plugin.nvim.buffer;
-    const bufferLines = await buffer.getLines();
-    const bufferContent = bufferLines.join('\n');
-    const bufferName = await buffer.name;
+    const packageFilePath = await buffer.name;
+    const packageFileLines = await buffer.lines;
+    const packageFileContent = packageFileLines.join('\n');
 
-    const confType = determineFileKind(bufferName);
+    /** @type {import('./types.d.ts').RenderCallback} */
+    const cb = async (depName, depValue, markers, nameRegex) => {
+        if (!depValue.currentVersion || !depValue.latestVersion) return;
 
-    const parser = getPackageParser(confType);
-    const depList = parser.getDeps(bufferContent);
-    parser.updatePackageVersions(depList);
-    parser.updateCurrentVersions(depList, bufferName);
+        const lineNumbers = getDepLines(packageFileLines, markers, nameRegex, depName);
+        for (let ln of lineNumbers) {
+            await drawOne(buffer, renderConfig, ln, { currentVersion: depValue.currentVersion, latestVersion: depValue.latestVersion });
+        }
+    }
+
+    const parser = getParserConfig(packageFilePath);
+
+    const { lockFilePath, lockFileContent } = await parser.getLockFile(packageFilePath);
+
+    const bufferHash = simpleHash(packageFileContent);
+    const lockfileHash = simpleHash(lockFileContent);
+
+    if (
+        FILE_CACHE.get(packageFilePath) === bufferHash &&
+        FILE_CACHE.get(lockFilePath) === lockfileHash
+    ) return;
+
+    // TODO: Branches below this point need a bit more thought, still not 100% sure on them
+    if (FILE_CACHE.get(packageFilePath) !== bufferHash) {
+        depList = parser.getDepsFromPackageFile(packageFileContent);
+        await parser.getRegistryVersions(depList, cb);
+    }
+
+    if (FILE_CACHE.get(lockFilePath) !== lockfileHash) {
+        await parser.getLockFileVersions(depList, packageFilePath, lockFilePath, lockFileContent, cb);
+    }
+
+    FILE_CACHE.set(packageFilePath, bufferHash);
+    FILE_CACHE.set(lockFilePath, lockfileHash);
 }
 
 /**

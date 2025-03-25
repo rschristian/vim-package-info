@@ -1,133 +1,201 @@
-import fs from 'node:fs';
+import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import yaml from 'yaml';
-import lockfile from '@yarnpkg/lockfile';
+import yarnParse  from '@yarnpkg/lockfile';
+import { parse as yamlParse } from 'yaml';
 
-import { fetcher } from '../utils.js';
-import { drawOne } from '../render.js';
-import { getDepLines } from '../render-utils.js';
+import { store } from '../store.js';
 
-const LANGUAGE = 'javascript';
+const LANGUAGE = 'javascript:package.json';
 const depGroups = ['dependencies', 'devDependencies'];
 const markers = depGroups.map((prop) => [new RegExp(`["|'](${prop})["|']`), /\}/]);
 const nameRegex = /['|"](.*)['|"] *:/;
 
-export class PackageJson {
-    getDeps(bufferContent) {
-        const data = JSON.parse(bufferContent);
+/**
+ * @typedef {import('../store.js').StoreItem} StoreItem
+ * @typedef {import('../types.d.ts').RenderCallback} RenderCallback
+ */
+
+/**
+ * @type {import('../types.d.ts').PackageFileParser}
+ */
+export const PkgJsonParser = {
+    getLockFile: async (packageFilePath) => {
+        let dir = path.resolve(path.dirname(packageFilePath));
+
+        do {
+            const files = (await fs.readdir(dir)).filter((f) => (f == 'package-lock.json' || f == 'yarn.lock' || f == 'pnpm-lock.yaml'));
+
+            if (!files.length) {
+                dir = path.dirname(dir);
+                continue;
+            }
+
+            // Only one lockfile should exist at a time, don't bother trying to support more
+            const lockFilePath = path.join(dir, files[0]);
+            const lockFileContent = await fs.readFile(lockFilePath, 'utf-8');
+
+            return { lockFilePath, lockFileContent };
+        } while (path.dirname(dir) !== dir);
+
+        throw new Error('No lockfile found');
+    },
+    getDepsFromPackageFile: (packageFileContent) => {
+        const data = JSON.parse(packageFileContent);
         const depList = [];
 
-        for (let dg of depGroups) {
-            if (dg in data)
-                for (let dep in data[dg]) {
-                    global.store.set(LANGUAGE, dep, { semver_version: data[dg][dep] });
-                    depList.push(dep);
-                }
+        for (const depGroup of depGroups) {
+            if (!(depGroup in data)) continue;
+
+            for (const dep in data[depGroup]) {
+                const semverVersion = data[depGroup][dep];
+
+                // We intentionally include packages with empty versions -- it's quite
+                // handy when manually adding a package, the user won't have to manually
+                // look up the latest version themselves.
+
+                // There's seemingly no comprehensive list out there but _I think_ this roughly covers it?
+                if (/^(https?|file|workspace|link):/.test(semverVersion)) continue;
+
+                store.set(LANGUAGE, dep, { semverVersion });
+                depList.push(dep);
+            }
         }
 
         return depList;
-    }
+    },
+    getRegistryVersions: async (depList, cb) => {
+        const updatePackageVersions = async (iter) => {
+            for (const dep of iter) {
+                const stored = store.get(LANGUAGE, dep);
+                if (stored && 'latestVersion' in stored && 'allVersions' in stored) continue;
 
-    updatePackageVersions(depList) {
-        for (let dep of depList) {
-            const fetchURL = `https://registry.npmjs.org/${dep}`;
-            fetcher(fetchURL).then((data) => {
-                const semver_version = global.store.get(LANGUAGE, dep).semver_version;
-                if (/^(http[s]*|file):\/\//.test(semver_version)) return; // don't bother checking in this case
+                const res = await fetch(`https://registry.npmjs.org/${dep}`, {
+                    headers: {
+                        // Returns abbreviated version, with a few less fields:
+                        // https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md
+                        Accept: 'application/vnd.npm.install-v1+json',
+                        'User-Agent': 'vim-package-info (github.com/rschristian/vim-package-info)',
+                    }
+                });
 
-                data = JSON.parse(data);
-                let latest = null;
-                let versions = null;
-                if ('dist-tags' in data && 'latest' in data['dist-tags'])
-                    latest = data['dist-tags']['latest'];
-                if ('versions' in data) versions = Object.keys(data['versions']);
-                global.store.set(LANGUAGE, dep, { latest, versions });
-            });
+                // TODO: Figure out proper error handling for rplugins
+                if (!res.ok) return;
+                const data = await res.json();
+
+                let latestVersion = '',
+                    allVersions = /** @type {string[]} */ ([]);
+                if ('dist-tags' in data && 'latest' in data['dist-tags']) {
+                    latestVersion = data['dist-tags']['latest'];
+                }
+
+                // TODO: Unused for the moment but could be used to show alts
+                // when a major version behind or something
+                if ('versions' in data) {
+                    allVersions = Object.keys(data['versions']);
+                }
+
+                store.set(LANGUAGE, dep, { latestVersion, allVersions });
+                if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
+            }
+        };
+
+        await Promise.all(
+            Array(5).fill(depList.values()).map(updatePackageVersions)
+        );
+    },
+    getLockFileVersions: async (depList, packageFilePath, lockFilePath, lockFileContent, cb) => {
+        const relativePackageFilePath = path.relative(path.dirname(lockFilePath), path.dirname(packageFilePath)) || '.';
+
+        switch (path.basename(lockFilePath)) {
+            case 'package-lock.json': {
+                return parseNPM(store, lockFileContent, depList, relativePackageFilePath, cb);
+            }
+            case 'yarn.lock': {
+                return parseYarn(store, lockFileContent, depList, cb);
+            }
+            case 'pnpm-lock.yaml': {
+                return parsePNPM(store, lockFileContent, depList, relativePackageFilePath, cb);
+            }
         }
     }
+};
 
-    updateCurrentVersions(depList, filePath) {
-        let found = false;
-        let dir = path.resolve(path.dirname(filePath));
+/**
+ * @param {typeof store} store
+ * @param {string} lockfile
+ * @param {string[]} depList
+ * @param {string} relativePackageFilePath
+ * @param {RenderCallback} [cb]
+ */
+function parseNPM(store, lockfile, depList, relativePackageFilePath, cb) {
+    const parsedLockfile = JSON.parse(lockfile);
 
-        do {
-            const npm_lock_filename = path.join(dir, 'package-lock.json');
-            const yarn_lock_filename = path.join(dir, 'yarn.lock');
-            const pnpm_lock_filename = path.join(dir, 'pnpm-lock.yaml');
+    const lockfileVersion = parsedLockfile['lockfileVersion'];
 
-            if (fs.existsSync(npm_lock_filename)) {
-                found = true;
-                const lockfile_content = JSON.parse(fs.readFileSync(npm_lock_filename, 'utf-8'));
-                const version = lockfile_content['lockfileVersion'];
-                for (let dep of depList) {
-                    for (let dg of depGroups) {
-                        if (version == 3) {
-                            const pkgKey = `node_modules/${dep}`;
-                            if (
-                                pkgKey in lockfile_content['packages'] && dg == 'dependencies'
-                                    ? lockfile_content['packages'][pkgKey]['dev'] === undefined
-                                    : lockfile_content['packages'][pkgKey]['dev'] === true
-                            ) {
-                                global.store.set(LANGUAGE, dep, {
-                                    current_version:
-                                        lockfile_content['packages'][pkgKey]['version'] || null,
-                                });
-                                break;
-                            }
-                        } else if (dg in lockfile_content && dep in lockfile_content[dg]) {
-                            global.store.set(LANGUAGE, dep, {
-                                current_version: lockfile_content[dg][dep]['version'] || null,
-                            });
-                            break;
-                        }
-                    }
-                }
-            } else if (fs.existsSync(yarn_lock_filename)) {
-                found = true;
-                const lockfile_content = lockfile.parse(
-                    fs.readFileSync(yarn_lock_filename, 'utf-8'),
-                );
-                for (let dep of depList) {
-                    for (let ld of Object.keys(lockfile_content['object'])) {
-                        if (ld.split('@')[0] === dep) {
-                            const current_version = lockfile_content['object'][ld].version;
-                            global.store.set(LANGUAGE, dep, {
-                                current_version,
-                            });
-                        }
-                    }
-                }
-            } else if (fs.existsSync(pnpm_lock_filename)) {
-                found = true;
-                const lockfile_content = yaml.parse(fs.readFileSync(pnpm_lock_filename, 'utf-8'));
-                for (let dep of depList) {
-                    for (let dg of depGroups) {
-                        if (dg in lockfile_content && dep in lockfile_content[dg]) {
-                            let current_version =
-                                lockfile_content[dg][dep]['version'].match(/([^\(]+)/);
-                            current_version = current_version ? current_version[1] : null;
-                            global.store.set(LANGUAGE, dep, {
-                                current_version,
-                            });
-                            break;
-                        }
-                    }
-                }
-            } else {
-                dir = path.dirname(dir);
+    for (const dep of depList) {
+        let currentVersion = null;
+
+        if (lockfileVersion >= 2) {
+            // Need to support workspace packages resolving to non-root install locations
+            let pkgKey = `${relativePackageFilePath}/node_modules/${dep}`;
+            if (pkgKey in parsedLockfile['packages']) {
+                currentVersion = parsedLockfile['packages'][pkgKey]['version'];
             }
-        } while (!found && dir !== path.dirname(dir));
+
+            pkgKey = `node_modules/${dep}`;
+            if (!currentVersion && pkgKey in parsedLockfile['packages']) {
+                currentVersion = parsedLockfile['packages'][pkgKey]['version'];
+            }
+        } else if (dep in parsedLockfile['dependencies']) {
+            currentVersion = parsedLockfile['dependencies'][dep]['version'];
+        }
+
+        store.set(LANGUAGE, dep, { currentVersion });
+        if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
     }
+}
 
-    async render(handle, dep) {
-        const buffer = await handle.nvim.buffer;
-        const bufferLines = await buffer.getLines();
+/**
+ * @param {typeof store} store
+ * @param {string} lockfile
+ * @param {string[]} depList
+ * @param {RenderCallback} [cb]
+ */
+function parseYarn(store, lockfile, depList, cb) {
+    const parsedLockfile = yarnParse.parse(lockfile);
 
-        const info = global.store.get(LANGUAGE, dep);
+    for (const dep of depList) {
+        for (const id of Object.keys(parsedLockfile['object'])) {
+            if (id.match(/^@[^@]+|[^@]+/)[0] === dep) {
+                const currentVersion = parsedLockfile['object'][id].version;
+                store.set(LANGUAGE, dep, { currentVersion });
+                if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
+            }
+        }
+    }
+}
 
-        const lineNumbers = getDepLines(bufferLines, markers, nameRegex, dep);
-        for (let ln of lineNumbers) {
-            await drawOne(handle, ln, info.current_version, info.latest);
+/**
+ * @param {typeof store} store
+ * @param {string} lockfile
+ * @param {string[]} depList
+ * @param {string} relativePackageFilePath
+ * @param {RenderCallback} [cb]
+ */
+function parsePNPM(store, lockfile, depList, relativePackageFilePath, cb) {
+    const parsedLockfile = yamlParse(lockfile);
+
+    const importers = parsedLockfile.importers[relativePackageFilePath];
+    const deps = depGroups.reduce((acc, key) => {
+        return { ...acc, ...importers[key] };
+    }, {});
+
+    for (const dep of depList) {
+        if (dep in deps) {
+            let currentVersion = deps[dep]['version'].match(/([^\(]+)/);
+            currentVersion = currentVersion ? currentVersion[1] : null;
+            store.set(LANGUAGE, dep, { currentVersion });
+            if (cb) cb(dep, /** @type {Partial<StoreItem>} */ (store.get(LANGUAGE, dep)), markers, nameRegex);
         }
     }
 }
