@@ -4,9 +4,9 @@ import { getDepLine } from './render-utils.js';
 
 let initialized = false;
 const FILE_CACHE = new Map();
+const DEP_CACHE = new Map();
 
-/** @type {string[]} */
-let depList = [];
+
 
 let renderConfig = {
     virtualTextNamespace: 0,
@@ -59,13 +59,21 @@ async function run(plugin) {
     )
         return;
 
+    /** @type {string[]} */
+    let depList = [];
+
     // TODO: Branches below this point need a bit more thought, still not 100% sure on them
     if (FILE_CACHE.get(packageFilePath) !== bufferHash) {
         depList = parser.getDepsFromPackageFile(packageFileContent);
         await parser.getRegistryVersions(depList, cb);
     }
 
-    if (FILE_CACHE.get(lockFilePath) !== lockfileHash) {
+    const depsHash = simpleHash(depList.join(''));
+
+    if (
+        FILE_CACHE.get(lockFilePath) !== lockfileHash ||
+        DEP_CACHE.get(packageFilePath) !== depsHash
+    ) {
         await parser.getLockFileVersions(
             depList,
             packageFilePath,
@@ -77,6 +85,7 @@ async function run(plugin) {
 
     FILE_CACHE.set(packageFilePath, bufferHash);
     FILE_CACHE.set(lockFilePath, lockfileHash);
+    DEP_CACHE.set(packageFilePath, depsHash);
 }
 
 /**
