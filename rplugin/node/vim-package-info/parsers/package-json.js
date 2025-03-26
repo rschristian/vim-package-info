@@ -80,8 +80,11 @@ export const PkgJsonParser = {
                     },
                 });
 
-                // TODO: Figure out proper error handling for rplugins
-                if (!res.ok) return;
+                if (!res.ok) {
+                    // Do we want to print out errors? Silence might be preferable
+                    //errWriteLine(`Failed to fetch package info for ${dep}, status: ${res.status}, ${res.statusText}`);
+                    return;
+                }
                 const data = await res.json();
 
                 let latestVersion = '',

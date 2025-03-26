@@ -87,3 +87,18 @@ export async function initRenderConfig(nvimPlugin) {
 
     return { virtualTextPrefix, virtualTextHlGroup };
 }
+
+/**
+ * @param {'error' | 'warn' | 'info' | 'debug'} level
+ * @param {string} message
+ */
+export function logger(level, message) {
+    globalThis.plugin.nvim.logger[level](`vim-package-info: ${message}`);
+}
+
+/**
+ * @param {string} message
+ */
+export function errWriteLine(message) {
+    globalThis.plugin.nvim.errWriteLine(`vim-package-info: ${message}`);
+}

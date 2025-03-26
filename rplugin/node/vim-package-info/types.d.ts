@@ -1,3 +1,5 @@
+import { NvimPlugin } from 'neovim';
+
 export interface PackageFileParser {
     getLockFile(
         packageFilePath: string,
@@ -47,3 +49,7 @@ export type RenderDiff = {
     currentVersion: string;
     latestVersion: string;
 };
+
+declare global {
+    var plugin: NvimPlugin;
+}

@@ -6,8 +6,6 @@ let initialized = false;
 const FILE_CACHE = new Map();
 const DEP_CACHE = new Map();
 
-
-
 let renderConfig = {
     virtualTextNamespace: 0,
     virtualTextPrefix: '',
@@ -18,6 +16,8 @@ let renderConfig = {
  * @param {import('neovim').NvimPlugin} plugin
  */
 async function run(plugin) {
+    globalThis.plugin = plugin;
+
     if (!initialized) {
         const [config, virtualTextNamespace] = await Promise.all([
             initRenderConfig(plugin),
